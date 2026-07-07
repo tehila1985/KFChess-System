@@ -1,9 +1,10 @@
 from step1 import validate_board, print_board
 from pieces import King, Rook, Bishop, Queen, Knight
 
+# מילון המחלקות שקובעות את חוקי התנועה של כל כלי
 PIECE_MAP = {'K': King(), 'R': Rook(), 'B': Bishop(), 'Q': Queen(), 'N': Knight()}
 
-class GameRunner: # <--- זה השם שה-main מחפש
+class GameRunner:
     def run(self, input_data):
         lines = input_data.strip().splitlines()
         board_lines, commands = [], []
@@ -16,11 +17,12 @@ class GameRunner: # <--- זה השם שה-main מחפש
             elif mode == "BOARD": board_lines.append(line)
             elif mode == "COMMANDS": commands.append(line)
 
+        # 1. בדיקת תקינות הלוח (מ-step1)
         val = validate_board(board_lines)
         if val != True:
-            print(val)
-            return
+            print(val); return
 
+        # 2. הרצת המנוע
         game = KFChessEngine(board_lines)
         for cmd in commands:
             parts = cmd.split()
@@ -34,6 +36,24 @@ class KFChessEngine:
         self.selected = None
         self.move_queue = []
 
+    def is_path_blocked(self, start, end):
+        sr, sc = start
+        tr, tc = end
+        # פרש (Knight) תמיד יכול לקפוץ
+        if isinstance(PIECE_MAP.get(self.board[sr][sc][1]), Knight):
+            return False
+            
+        dr = 0 if sr == tr else (1 if tr > sr else -1)
+        dc = 0 if sc == tc else (1 if tc > sc else -1)
+        
+        r, c = sr + dr, sc + dc
+        # בודקים אם יש כלי בדרך
+        while (r, c) != (tr, tc):
+            if not (0 <= r < len(self.board) and 0 <= c < len(self.board[0])): return True
+            if self.board[r][c] != ".": return True
+            r += dr; c += dc
+        return False
+
     def click(self, x, y):
         col, row = x // 100, y // 100
         if not (0 <= row < len(self.board) and 0 <= col < len(self.board[0])): return
@@ -41,17 +61,23 @@ class KFChessEngine:
         
         if self.selected:
             sr, sc = self.selected
-            piece_token = self.board[sr][sc]
-            logic = PIECE_MAP.get(piece_token[1])
+            p_token = self.board[sr][sc]
+            logic = PIECE_MAP.get(p_token[1])
             
-            if target != "." and target[0] == piece_token[0]: self.selected = (row, col)
-            elif logic and logic.is_legal((sr, sc), (row, col)):
+            # אם בחרנו כלי שלנו - מחליפים בחירה
+            if target != "." and target[0] == p_token[0]:
+                self.selected = (row, col)
+            # אם המהלך חוקי גיאומטרית ואין חסימות - מוסיפים לתור
+            elif logic and logic.is_legal((sr, sc), (row, col)) and not self.is_path_blocked((sr, sc), (row, col)):
                 self.move_queue.append(((sr, sc), (row, col)))
                 self.selected = None
             else: self.selected = None
-        elif target != ".": self.selected = (row, col)
+        elif target != ".": 
+            # בחירת כלי (רק אם הוא שייך אלינו)
+            self.selected = (row, col)
 
     def wait(self, ms):
+        # המהלך מתבצע כאן: דורס את משבצת היעד (אכילה)
         while self.move_queue:
             (sr, sc), (tr, tc) = self.move_queue.pop(0)
             self.board[tr][tc] = self.board[sr][sc]

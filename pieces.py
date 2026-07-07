@@ -1,5 +1,5 @@
 class Piece:
-    def is_legal(self, start_pos, end_pos):
+    def is_legal(self, start, end):
         raise NotImplementedError
 
 class King(Piece):
