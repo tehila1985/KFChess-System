@@ -1,5 +1,14 @@
 from engine.pieces import PieceRegistry
 
+MOVE_DURATION_MS = {
+    'K': 1000,
+    'Q': 2000,
+    'R': 2000,
+    'B': 2000,
+    'N': 3000,
+    'P': 500,
+}
+
 
 class Action:
     def __init__(self, start, end, start_time, duration):
@@ -34,7 +43,7 @@ class GameEngine:
         return self.cooldowns.get((r, c), 0) > self.current_time
 
     def _travel_time(self, start, end, piece_type):
-        return piece_type.speed_ms
+        return MOVE_DURATION_MS.get(piece_type.code, 1000)
 
     def _flush_actions(self):
         done = [a for a in self.action_queue if a.end_time <= self.current_time]
