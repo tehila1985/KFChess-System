@@ -78,18 +78,6 @@ class PieceType:
         return self.rule.is_jumper()
 
 
-class PieceRegistry:
-    _registry = {}
-
-    @classmethod
-    def register(cls, piece_type):
-        cls._registry[piece_type.code] = piece_type
-
-    @classmethod
-    def get(cls, code):
-        return cls._registry.get(code)
-    
-
 MOVE_DURATION_MS = {
     'K': 1000,
     'Q': 2000,
@@ -107,6 +95,23 @@ PIECE_SCORE = {
     'N': 3,
     'P': 1,
 }
+
+JUMP_DURATION_MS = 1000
+
+
+class PieceRegistry:
+    _registry = {}
+    MOVE_DURATION_MS = MOVE_DURATION_MS
+    PIECE_SCORE = PIECE_SCORE
+    JUMP_DURATION_MS = JUMP_DURATION_MS
+
+    @classmethod
+    def register(cls, piece_type):
+        cls._registry[piece_type.code] = piece_type
+
+    @classmethod
+    def get(cls, code):
+        return cls._registry.get(code)
 
 PieceRegistry.register(PieceType('K', KingRule(),   MOVE_DURATION_MS['K'], PIECE_SCORE['K']))
 PieceRegistry.register(PieceType('Q', QueenRule(),  MOVE_DURATION_MS['Q'], PIECE_SCORE['Q']))

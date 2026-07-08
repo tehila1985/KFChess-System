@@ -1,17 +1,5 @@
 from engine.pieces import PieceRegistry
 
-MOVE_DURATION_MS = {
-    'K': 1000,
-    'Q': 1000,
-    'R': 1000,
-    'B': 1000,
-    'N': 1000,
-    'P': 1000,
-}
-
-
-JUMP_DURATION_MS = 1000
-
 
 class Action:
     def __init__(self, start, end, start_time, duration):
@@ -63,7 +51,7 @@ class GameEngine:
         return False
 
     def _travel_time(self, start, end, piece_type):
-        return MOVE_DURATION_MS.get(piece_type.code, 1000)
+        return PieceRegistry.MOVE_DURATION_MS.get(piece_type.code, 1000)
 
     def _flush_actions(self):
         done = sorted(
@@ -180,7 +168,7 @@ class GameEngine:
         if self._is_moving(row, col) or self._is_airborne(row, col):
             return
         # schedule jump action (start == end) with fixed duration
-        self.action_queue.append(Action((row, col), (row, col), self.current_time, JUMP_DURATION_MS))
+        self.action_queue.append(Action((row, col), (row, col), self.current_time, PieceRegistry.JUMP_DURATION_MS))
 
     def wait(self, ms):
         if self.is_game_over():
