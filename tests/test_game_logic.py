@@ -152,5 +152,37 @@ class TestGameEngineTiming(unittest.TestCase):
         self.assertEqual(b.get(0, 2), 'wR')
 
 
+class TestGameEngineHeadOnCollision(unittest.TestCase):
+
+    def test_white_started_first_wins(self):
+        # בודק שלבן שהתחיל ראשון מנצח בהתנגשות head-to-head
+        b = Board(['wR . . bR'])
+        e = GameEngine(b)
+        e.click(50, 50); e.click(350, 50)   # לבן זז ימינה
+        e.click(350, 50); e.click(50, 50)   # שחור זז שמאלה
+        e.wait(3000)
+        self.assertEqual(b.get(0, 3), 'wR')
+        self.assertEqual(b.get(0, 0), '.')
+
+    def test_black_started_first_wins(self):
+        # בודק שהשחור שהתחיל ראשון מנצח בהתנגשות head-to-head
+        b = Board(['wR . . bR'])
+        e = GameEngine(b)
+        e.click(350, 50); e.click(50, 50)   # שחור זז שמאלה
+        e.click(50, 50); e.click(350, 50)   # לבן זז ימינה
+        e.wait(3000)
+        self.assertEqual(b.get(0, 0), 'bR')
+        self.assertEqual(b.get(0, 3), '.')
+
+    def test_head_on_winner_gets_score(self):
+        # בודק שהמנצח בהתנגשות מקבל ניקוד
+        b = Board(['wR . . bR'])
+        e = GameEngine(b)
+        e.click(50, 50); e.click(350, 50)
+        e.click(350, 50); e.click(50, 50)
+        e.wait(3000)
+        self.assertEqual(e.scores['w'], 5)  # לבן אכל צריח שחור
+
+
 if __name__ == '__main__':
     unittest.main()
