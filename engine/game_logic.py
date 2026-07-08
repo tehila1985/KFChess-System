@@ -89,6 +89,8 @@ class GameEngine:
                     self.scores[winner] += pt.score
 
     def click(self, x, y):
+        if self.is_game_over():
+            return
         col, row = x // 100, y // 100
         if not self.board.in_bounds(row, col):
             return
@@ -118,6 +120,8 @@ class GameEngine:
             self.selected = (row, col)
 
     def wait(self, ms):
+        if self.is_game_over():
+            return
         self.current_time += ms
         self._flush_actions()
 

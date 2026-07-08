@@ -54,10 +54,10 @@ class TestGameEngineMovement(unittest.TestCase):
         # בודק שלא ניתן להפנות כלי שכבר בתנועה
         b = Board(['wR . .'])
         e = GameEngine(b)
-        e.click(50, 50); e.click(150, 50)   # זז לתא 1
-        e.click(50, 50); e.click(250, 50)   # מנסה להפנות לתא 2
+        e.click(50, 50); e.click(150, 50)
+        e.click(50, 50); e.click(250, 50)
         e.wait(1000)
-        self.assertEqual(b.get(0, 1), 'wR')  # הגיע לתא 1, לא לתא 2
+        self.assertEqual(b.get(0, 1), 'wR')
 
     def test_can_move_again_after_arrival(self):
         # בודק שכלי יכול לזוז שוב מיד אחרי הגעה (אין cooldown)
@@ -103,11 +103,11 @@ class TestGameEngineBlocking(unittest.TestCase):
         # בודק ששני כלים מצבעים שונים לא יכולים לנוע לאותה עמודה יעד
         b = Board(['wR . .', '. . .', 'bR . .'])
         e = GameEngine(b)
-        e.click(50, 50); e.click(250, 50)    # לבן לעמודה 2
-        e.click(50, 250); e.click(250, 250)  # שחור מנסה לאותה עמודה
+        e.click(50, 50); e.click(250, 50)
+        e.click(50, 250); e.click(250, 250)
         e.wait(2000)
         self.assertEqual(b.get(0, 2), 'wR')
-        self.assertEqual(b.get(2, 0), 'bR')  # שחור לא זז
+        self.assertEqual(b.get(2, 0), 'bR')
 
 
 class TestGameEngineCapture(unittest.TestCase):
@@ -125,7 +125,10 @@ class TestGameEngineCapture(unittest.TestCase):
         b = Board(['wR . bR'])
         e = GameEngine(b)
         e.click(50, 50); e.click(250, 50); e.wait(2000)
-        self.assertEqual(e.scores['w'], 5)  # צריח = 5 נקודות
+        self.assertEqual(e.scores['w'], 5)
+
+
+class TestGameEngineGameOver(unittest.TestCase):
 
     def test_capture_king_ends_game(self):
         # בודק שאכילת מלך מסיימת את המשחק
@@ -134,17 +137,47 @@ class TestGameEngineCapture(unittest.TestCase):
         e.click(50, 50); e.click(250, 50); e.wait(2000)
         self.assertTrue(e.is_game_over())
 
+    def test_game_not_over_without_king_capture(self):
+        # בודק שהמשחק לא נגמר לפני אכילת מלך
+        b = Board(['wR . bR'])
+        e = GameEngine(b)
+        e.click(50, 50); e.click(250, 50); e.wait(2000)
+        self.assertFalse(e.is_game_over())
+
+    def test_commands_ignored_after_game_over(self):
+        # בודק שפקודות מתעלמות אחרי סיום המשחק
+        b = Board(['wR . bK'])
+        e = GameEngine(b)
+        e.click(50, 50); e.click(250, 50); e.wait(2000)
+        e.click(250, 50); e.click(50, 50); e.wait(2000)
+        self.assertEqual(b.get(0, 2), 'wR')
+
+    def test_white_wins_by_capturing_black_king(self):
+        # בודק שלבן מנצח כשאוכל את מלך השחור
+        b = Board(['wR . bK'])
+        e = GameEngine(b)
+        e.click(50, 50); e.click(250, 50); e.wait(2000)
+        self.assertEqual(e.scores['w'], float('inf'))
+
+    def test_black_wins_by_capturing_white_king(self):
+        # בודק שהשחור מנצח כשאוכל את מלך הלבן
+        b = Board(['wK . bR'])
+        e = GameEngine(b)
+        e.click(250, 50); e.click(50, 50); e.wait(2000)
+        self.assertTrue(e.is_game_over())
+        self.assertEqual(e.scores['b'], float('inf'))
+
 
 class TestGameEngineTiming(unittest.TestCase):
 
-    def test_two_cell_move_before_arrival(self):
+    def test_piece_not_arrived_before_duration(self):
         # בודק שכלי לא הגיע לפני זמן התנועה (wait 500ms מתוך 1000ms)
         b = Board(['wR . .'])
         e = GameEngine(b)
         e.click(50, 50); e.click(250, 50); e.wait(500)
         self.assertEqual(b.get(0, 0), 'wR')
 
-    def test_two_cell_move_after_arrival(self):
+    def test_piece_arrived_after_duration(self):
         # בודק שכלי הגיע אחרי זמן התנועה (wait 2000ms)
         b = Board(['wR . .'])
         e = GameEngine(b)
@@ -158,8 +191,8 @@ class TestGameEngineHeadOnCollision(unittest.TestCase):
         # בודק שלבן שהתחיל ראשון מנצח בהתנגשות head-to-head
         b = Board(['wR . . bR'])
         e = GameEngine(b)
-        e.click(50, 50); e.click(350, 50)   # לבן זז ימינה
-        e.click(350, 50); e.click(50, 50)   # שחור זז שמאלה
+        e.click(50, 50); e.click(350, 50)
+        e.click(350, 50); e.click(50, 50)
         e.wait(3000)
         self.assertEqual(b.get(0, 3), 'wR')
         self.assertEqual(b.get(0, 0), '.')
@@ -168,8 +201,8 @@ class TestGameEngineHeadOnCollision(unittest.TestCase):
         # בודק שהשחור שהתחיל ראשון מנצח בהתנגשות head-to-head
         b = Board(['wR . . bR'])
         e = GameEngine(b)
-        e.click(350, 50); e.click(50, 50)   # שחור זז שמאלה
-        e.click(50, 50); e.click(350, 50)   # לבן זז ימינה
+        e.click(350, 50); e.click(50, 50)
+        e.click(50, 50); e.click(350, 50)
         e.wait(3000)
         self.assertEqual(b.get(0, 0), 'bR')
         self.assertEqual(b.get(0, 3), '.')
@@ -181,7 +214,7 @@ class TestGameEngineHeadOnCollision(unittest.TestCase):
         e.click(50, 50); e.click(350, 50)
         e.click(350, 50); e.click(50, 50)
         e.wait(3000)
-        self.assertEqual(e.scores['w'], 5)  # לבן אכל צריח שחור
+        self.assertEqual(e.scores['w'], 5)
 
 
 if __name__ == '__main__':
