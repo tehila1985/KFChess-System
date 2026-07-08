@@ -47,7 +47,7 @@ class PawnRule(MovementRule):
 
         color = piece[0]
         direction = -1 if color == 'w' else 1
-        start_row = board.rows - 2 if color == 'w' else 1
+        start_row = board.rows - 1 if color == 'w' else 0
 
         # תנועה רגילה: קדימה משבצת אחת למשבצת ריקה
         if sc == tc and tr == sr + direction:
