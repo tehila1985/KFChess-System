@@ -87,6 +87,14 @@ class GameEngine:
                 if pt:
                     winner = 'w' if captured[0] == 'b' else 'b'
                     self.scores[winner] += pt.score
+            # הכתרה: חייל שהגיע לשורה האחרונה הופך למלכה
+            tr, tc = action.end
+            token = self.board.get(tr, tc)
+            if token and token[1] == 'P':
+                color = token[0]
+                promotion_row = 0 if color == 'w' else self.board.rows - 1
+                if tr == promotion_row:
+                    self.board.set(tr, tc, color + 'Q')
 
     def click(self, x, y):
         if self.is_game_over():

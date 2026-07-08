@@ -42,20 +42,26 @@ class PawnRule(MovementRule):
         sr, sc = start
         tr, tc = end
         piece = board.get(sr, sc)
-        if not piece: return False
-        
-        color = piece[0] # 'w' או 'b'
+        if not piece:
+            return False
+
+        color = piece[0]
         direction = -1 if color == 'w' else 1
-        
-        # 1. תנועה רגילה: קדימה בקו ישר למשבצת ריקה
+        start_row = board.rows - 2 if color == 'w' else 1
+
+        # תנועה רגילה: קדימה משבצת אחת למשבצת ריקה
         if sc == tc and tr == sr + direction:
             return board.is_empty(tr, tc)
-            
-        # 2. לכידה: אלכסון למשבצת שיש בה אויב
+
+        # תנועה כפולה: 2 משבצות קדימה משורת ההתחלה, הנתיב חייב להיות פנוי
+        if sc == tc and sr == start_row and tr == sr + 2 * direction:
+            return board.is_empty(sr + direction, sc) and board.is_empty(tr, tc)
+
+        # לכידה: אלכסון למשבצת שיש בה אויב
         if abs(sc - tc) == 1 and tr == sr + direction:
             target = board.get(tr, tc)
             return target != "." and target[0] != color
-            
+
         return False
     
 class PieceType:
