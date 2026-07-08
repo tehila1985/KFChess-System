@@ -69,7 +69,7 @@ class GameEngine:
                 self.selected = (row, col)
                 return
 
-            if pt and pt.is_legal_move((sr, sc), (row, col)) \
+            if pt and pt.is_legal_move((sr, sc), (row, col), self.board) \
                     and not self.board.is_path_blocked((sr, sc), (row, col), pt.is_jumper()) \
                     and not self._is_on_cooldown(sr, sc):
                 duration = self._travel_time((sr, sc), (row, col), pt)
