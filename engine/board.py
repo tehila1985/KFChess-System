@@ -1,27 +1,3 @@
-import re
-
-VALID_TOKEN = re.compile(r'^[wb][KQRBNP]$')
-
-
-def validate_board(board_lines):
-    if not board_lines:
-        return False
-    width = len(board_lines[0].split())
-    for row in board_lines:
-        tokens = row.split()
-        if len(tokens) != width:
-            return "ERROR ROW_WIDTH_MISMATCH"
-        for token in tokens:
-            if token != "." and not VALID_TOKEN.match(token):
-                return "ERROR UNKNOWN_TOKEN"
-    return True
-
-
-def print_board(board):
-    for row in board:
-        print(" ".join(row))
-
-
 class Board:
     def __init__(self, board_lines):
         self.grid = [line.split() for line in board_lines]
@@ -62,3 +38,7 @@ class Board:
         self.grid[tr][tc] = self.grid[sr][sc]
         self.grid[sr][sc] = "."
         return captured
+
+    def display(self):
+        for row in self.grid:
+            print(" ".join(row))

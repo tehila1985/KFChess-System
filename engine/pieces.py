@@ -39,15 +39,15 @@ class PawnRule(MovementRule):
     def is_legal(self, start, end):
         dr = end[0] - start[0]
         dc = abs(end[1] - start[1])
-        return dc == 0 and dr == -1  # לבן זז למעלה; שחור יטופל ב-GameEngine
+        return dc == 0 and dr == -1
 
 
 class PieceType:
     def __init__(self, code, rule, speed_ms, score):
-        self.code = code          # 'K', 'Q', etc.
-        self.rule = rule          # MovementRule instance
-        self.speed_ms = speed_ms  # זמן תנועה בסיסי (ms לכל משבצת)
-        self.score = score        # ניקוד לאכילה
+        self.code = code
+        self.rule = rule
+        self.speed_ms = speed_ms
+        self.score = score
 
     def is_legal_move(self, start, end):
         return self.rule.is_legal(start, end)
@@ -68,7 +68,6 @@ class PieceRegistry:
         return cls._registry.get(code)
 
 
-# רישום כל הכלים הסטנדרטיים
 PieceRegistry.register(PieceType('K', KingRule(),   300, float('inf')))
 PieceRegistry.register(PieceType('Q', QueenRule(),  200, 9))
 PieceRegistry.register(PieceType('R', RookRule(),   250, 5))

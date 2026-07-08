@@ -1,9 +1,7 @@
-from step1 import validate_board, print_board, Board
-from pieces import PieceRegistry
+from engine.pieces import PieceRegistry
 
 
 class Action:
-    """מייצג פעולת תנועה עם תזמון"""
     def __init__(self, start, end, start_time, duration):
         self.start = start
         self.end = end
@@ -16,14 +14,14 @@ class Action:
 
 
 class GameEngine:
-    COOLDOWN_MS = 500  # זמן מנוחה לאחר הגעה ליעד
+    COOLDOWN_MS = 500
 
     def __init__(self, board):
         self.board = board
         self.selected = None
         self.current_time = 0
-        self.action_queue = []          # פעולות ממתינות
-        self.cooldowns = {}             # (r,c) -> זמן שבו הכלי פנוי שוב
+        self.action_queue = []
+        self.cooldowns = {}
         self.scores = {'w': 0, 'b': 0}
 
     def _piece_type(self, r, c):
@@ -40,22 +38,18 @@ class GameEngine:
         return dist * piece_type.speed_ms
 
     def _flush_actions(self):
-        """מבצע את כל הפעולות שהגיע זמנן"""
         done = [a for a in self.action_queue if a.end_time <= self.current_time]
         for action in done:
             self.action_queue.remove(action)
             sr, sc = action.start
             tr, tc = action.end
-            # בדיקה שהכלי עדיין שם (לא נאכל בינתיים)
-            token = self.board.get(sr, sc)
-            if token == ".":
+            if self.board.get(sr, sc) == ".":
                 continue
             captured = self.board.move_piece(action.start, action.end)
             if captured != ".":
-                color = captured[0]
                 pt = PieceRegistry.get(captured[1])
                 if pt:
-                    winner = 'w' if color == 'b' else 'b'
+                    winner = 'w' if captured[0] == 'b' else 'b'
                     self.scores[winner] += pt.score
             self.cooldowns[(tr, tc)] = action.end_time + self.COOLDOWN_MS
 
@@ -63,7 +57,6 @@ class GameEngine:
         col, row = x // 100, y // 100
         if not self.board.in_bounds(row, col):
             return
-
         self._flush_actions()
         target = self.board.get(row, col)
 
@@ -73,7 +66,6 @@ class GameEngine:
             pt = self._piece_type(sr, sc)
 
             if target != "." and target[0] == p_token[0]:
-                # בחירה מחדש של כלי אחר מאותו צד
                 self.selected = (row, col)
                 return
 
@@ -93,43 +85,4 @@ class GameEngine:
         self._flush_actions()
 
     def is_game_over(self):
-        """ניצחון = אכילת מלך היריב"""
         return self.scores['w'] == float('inf') or self.scores['b'] == float('inf')
-
-
-class GameRunner:
-    def run(self, input_data):
-        lines = input_data.strip().splitlines()
-        board_lines, commands = [], []
-        mode = "NONE"
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            if line == "Board:":
-                mode = "BOARD"
-            elif line == "Commands:":
-                mode = "COMMANDS"
-            elif mode == "BOARD":
-                board_lines.append(line)
-            elif mode == "COMMANDS":
-                commands.append(line)
-
-        val = validate_board(board_lines)
-        if val is not True:
-            print(val)
-            return
-
-        board = Board(board_lines)
-        engine = GameEngine(board)
-
-        for cmd in commands:
-            parts = cmd.split()
-            if not parts:
-                continue
-            if parts[0] == "click":
-                engine.click(int(parts[1]), int(parts[2]))
-            elif parts[0] == "wait":
-                engine.wait(int(parts[1]))
-            elif parts[0] == "print":
-                print_board(engine.board.grid)
