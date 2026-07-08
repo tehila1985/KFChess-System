@@ -10,6 +10,9 @@ MOVE_DURATION_MS = {
 }
 
 
+JUMP_DURATION_MS = 1000
+
+
 class Action:
     def __init__(self, start, end, start_time, duration):
         self.start = start
@@ -20,6 +23,10 @@ class Action:
     @property
     def end_time(self):
         return self.start_time + self.duration
+
+    @property
+    def is_jump(self):
+        return self.start == self.end
 
 
 class GameEngine:
@@ -37,10 +44,14 @@ class GameEngine:
         return PieceRegistry.get(token[1])
 
     def _is_moving(self, r, c):
-        return any(a.start == (r, c) for a in self.action_queue)
+        return any(a.start == (r, c) and not a.is_jump for a in self.action_queue)
+
+    def _is_airborne(self, r, c):
+        return any(a.is_jump and a.start == (r, c) for a in self.action_queue)
 
     def _is_destination_taken(self, tr, tc):
-        return any(a.end == (tr, tc) for a in self.action_queue)
+        # a destination is considered taken only if a NON-JUMP action is targeting it
+        return any(a.end == (tr, tc) and not a.is_jump for a in self.action_queue)
 
     def _route_conflicts(self, start, end):
         """חוסם רק אם כלי אחר נע לאותה עמודה יעד מאותו כיוון (לא head-to-head)"""
@@ -60,23 +71,51 @@ class GameEngine:
             key=lambda a: a.start_time
         )
         for action in done:
-            self.action_queue.remove(action)
+            if action in self.action_queue:
+                self.action_queue.remove(action)
 
-        winners = set()
+        # snapshot board before mutations so we can refer to original tokens
+        snapshot = [row[:] for row in self.board.grid]
+
         losers = set()
         for i, action in enumerate(done):
             for j, other in enumerate(done):
                 if i == j:
                     continue
-                # head-to-head: other נע לתא המקור של action
+                # head-to-head: other moves to action.start and action moves to other.start
                 if other.end == action.start and other.start == action.end:
                     if other.start_time < action.start_time:
-                        losers.add(i)  # action התחיל אחר
+                        losers.add(i)
                     elif other.start_time == action.start_time and j < i:
-                        losers.add(i)  # זמן שווה — הראשון בסדר מנצח
+                        losers.add(i)
 
+        # First: resolve jumps capturing arriving movers (jumping piece stays in place)
         for i, action in enumerate(done):
-            if i in losers:
+            if i in losers or not action.is_jump:
+                continue
+            sr, sc = action.start
+            if snapshot[sr][sc] == ".":
+                continue
+            # any arriving mover whose end == this jump's cell is captured (removed at its source)
+            for j, other in enumerate(done):
+                if j in losers or other is action or other.is_jump:
+                    continue
+                if other.end == action.start:
+                    osr, osc = other.start
+                    captured_token = snapshot[osr][osc]
+                    if captured_token == ".":
+                        continue
+                    # remove arriving piece (it never lands)
+                    self.board.set(osr, osc, ".")
+                    # award score to jumper's side (captured token belongs to enemy)
+                    pt = PieceRegistry.get(captured_token[1])
+                    if pt:
+                        winner = 'w' if captured_token[0] == 'b' else 'b'
+                        self.scores[winner] += pt.score
+
+        # Then: resolve normal moves (move_piece handles captures against non-airborne pieces)
+        for i, action in enumerate(done):
+            if i in losers or action.is_jump:
                 continue
             sr, sc = action.start
             if self.board.get(sr, sc) == ".":
@@ -87,7 +126,7 @@ class GameEngine:
                 if pt:
                     winner = 'w' if captured[0] == 'b' else 'b'
                     self.scores[winner] += pt.score
-            # הכתרה: חייל שהגיע לשורה האחרונה הופך למלכה
+            # promotion handling after move
             tr, tc = action.end
             token = self.board.get(tr, tc)
             if token and token[1] == 'P':
@@ -126,6 +165,22 @@ class GameEngine:
                 self.selected = None
         elif target != ".":
             self.selected = (row, col)
+
+    def jump(self, x, y):
+        """Schedule a jump (airborne) action for the piece at the given pixel coords."""
+        if self.is_game_over():
+            return
+        col, row = x // 100, y // 100
+        if not self.board.in_bounds(row, col):
+            return
+        # cannot jump from empty cell
+        if self.board.get(row, col) == ".":
+            return
+        # cannot jump if piece is currently moving or already airborne
+        if self._is_moving(row, col) or self._is_airborne(row, col):
+            return
+        # schedule jump action (start == end) with fixed duration
+        self.action_queue.append(Action((row, col), (row, col), self.current_time, JUMP_DURATION_MS))
 
     def wait(self, ms):
         if self.is_game_over():

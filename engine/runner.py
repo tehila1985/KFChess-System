@@ -23,6 +23,8 @@ def run():
             continue
         if parts[0] == "click":
             engine.click(int(parts[1]), int(parts[2]))
+        elif parts[0] == "jump":
+            engine.jump(int(parts[1]), int(parts[2]))
         elif parts[0] == "wait":
             engine.wait(int(parts[1]))
         elif parts[0] == "print":
