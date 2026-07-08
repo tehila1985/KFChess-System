@@ -43,21 +43,42 @@ class GameEngine:
         return any(a.end == (tr, tc) for a in self.action_queue)
 
     def _route_conflicts(self, start, end):
-        """בודק אם יש כלי אחר שכבר נע לאותה עמודה יעד"""
+        """חוסם רק אם כלי אחר נע לאותה עמודה יעד מאותו כיוון (לא head-to-head)"""
         for a in self.action_queue:
-            if a.end[1] == end[1]:  # אותה עמודה יעד
-                return True
+            if a.end[1] == end[1] and a.start[1] != end[1]:
+                # אותה עמודה יעד, ושניהם באים מאותו צד
+                if (start[1] < end[1]) == (a.start[1] < a.end[1]):
+                    return True
         return False
 
     def _travel_time(self, start, end, piece_type):
         return MOVE_DURATION_MS.get(piece_type.code, 1000)
 
     def _flush_actions(self):
-        done = [a for a in self.action_queue if a.end_time <= self.current_time]
+        done = sorted(
+            [a for a in self.action_queue if a.end_time <= self.current_time],
+            key=lambda a: a.start_time
+        )
         for action in done:
             self.action_queue.remove(action)
+
+        winners = set()
+        losers = set()
+        for i, action in enumerate(done):
+            for j, other in enumerate(done):
+                if i == j:
+                    continue
+                # head-to-head: other נע לתא המקור של action
+                if other.end == action.start and other.start == action.end:
+                    if other.start_time < action.start_time:
+                        losers.add(i)  # action התחיל אחר
+                    elif other.start_time == action.start_time and j < i:
+                        losers.add(i)  # זמן שווה — הראשון בסדר מנצח
+
+        for i, action in enumerate(done):
+            if i in losers:
+                continue
             sr, sc = action.start
-            tr, tc = action.end
             if self.board.get(sr, sc) == ".":
                 continue
             captured = self.board.move_piece(action.start, action.end)
