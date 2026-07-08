@@ -84,9 +84,18 @@ class PieceRegistry:
         return cls._registry.get(code)
     
 
-PieceRegistry.register(PieceType('K', KingRule(),   300, float('inf')))
-PieceRegistry.register(PieceType('Q', QueenRule(),  200, 9))
-PieceRegistry.register(PieceType('R', RookRule(),   250, 5))
-PieceRegistry.register(PieceType('B', BishopRule(), 250, 3))
-PieceRegistry.register(PieceType('N', KnightRule(), 300, 3))
-PieceRegistry.register(PieceType('P', PawnRule(),   400, 1))
+MOVE_DURATION_MS = {
+    'K': 1000,
+    'Q': 2000,
+    'R': 2000,
+    'B': 2000,
+    'N': 3000,
+    'P': 500,
+}
+
+PieceRegistry.register(PieceType('K', KingRule(),   MOVE_DURATION_MS['K'], float('inf')))
+PieceRegistry.register(PieceType('Q', QueenRule(),  MOVE_DURATION_MS['Q'], 9))
+PieceRegistry.register(PieceType('R', RookRule(),   MOVE_DURATION_MS['R'], 5))
+PieceRegistry.register(PieceType('B', BishopRule(), MOVE_DURATION_MS['B'], 3))
+PieceRegistry.register(PieceType('N', KnightRule(), MOVE_DURATION_MS['N'], 3))
+PieceRegistry.register(PieceType('P', PawnRule(),   MOVE_DURATION_MS['P'], 1))

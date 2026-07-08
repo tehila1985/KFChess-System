@@ -34,8 +34,7 @@ class GameEngine:
         return self.cooldowns.get((r, c), 0) > self.current_time
 
     def _travel_time(self, start, end, piece_type):
-        dist = max(abs(start[0] - end[0]), abs(start[1] - end[1]))
-        return dist * piece_type.speed_ms
+        return piece_type.speed_ms
 
     def _flush_actions(self):
         done = [a for a in self.action_queue if a.end_time <= self.current_time]
