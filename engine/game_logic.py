@@ -23,11 +23,14 @@ class Action:
 
 
 class GameEngine:
+    COOLDOWN_MS = 500
+
     def __init__(self, board):
         self.board = board
         self.selected = None
         self.current_time = 0
         self.action_queue = []
+        self.cooldowns = {}
         self.scores = {'w': 0, 'b': 0}
 
     def _piece_type(self, r, c):
@@ -56,6 +59,7 @@ class GameEngine:
                 if pt:
                     winner = 'w' if captured[0] == 'b' else 'b'
                     self.scores[winner] += pt.score
+            self.cooldowns[(tr, tc)] = action.end_time + self.COOLDOWN_MS
 
     def click(self, x, y):
         col, row = x // 100, y // 100
