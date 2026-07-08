@@ -23,14 +23,11 @@ class Action:
 
 
 class GameEngine:
-    COOLDOWN_MS = 500
-
     def __init__(self, board):
         self.board = board
         self.selected = None
         self.current_time = 0
         self.action_queue = []
-        self.cooldowns = {}
         self.scores = {'w': 0, 'b': 0}
 
     def _piece_type(self, r, c):
@@ -39,8 +36,8 @@ class GameEngine:
             return None
         return PieceRegistry.get(token[1])
 
-    def _is_on_cooldown(self, r, c):
-        return self.cooldowns.get((r, c), 0) > self.current_time
+    def _is_moving(self, r, c):
+        return any(a.start == (r, c) for a in self.action_queue)
 
     def _travel_time(self, start, end, piece_type):
         return MOVE_DURATION_MS.get(piece_type.code, 1000)
@@ -59,7 +56,6 @@ class GameEngine:
                 if pt:
                     winner = 'w' if captured[0] == 'b' else 'b'
                     self.scores[winner] += pt.score
-            self.cooldowns[(tr, tc)] = action.end_time + self.COOLDOWN_MS
 
     def click(self, x, y):
         col, row = x // 100, y // 100
@@ -79,7 +75,7 @@ class GameEngine:
 
             if pt and pt.is_legal_move((sr, sc), (row, col), self.board) \
                     and not self.board.is_path_blocked((sr, sc), (row, col), pt.is_jumper()) \
-                    and not self._is_on_cooldown(sr, sc):
+                    and not self._is_moving(sr, sc):
                 duration = self._travel_time((sr, sc), (row, col), pt)
                 self.action_queue.append(Action((sr, sc), (row, col), self.current_time, duration))
                 self.selected = None
