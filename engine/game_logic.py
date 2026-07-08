@@ -1,4 +1,8 @@
 from engine.pieces import PieceRegistry
+from engine.config import (
+    EMPTY_CELL, WHITE, BLACK, PAWN, KING,
+    PIXEL_TO_GRID_DIVISOR, JUMP_DURATION_MS, MOVE_DURATION_MS
+)
 
 
 class Action:
@@ -36,12 +40,12 @@ class GameEngine:
         self.selected = None                        # הכלי שנבחר להזזה (מיקום: (row, col))
         self.current_time = 0                       # הזמן הנוכחי של סימולציה המשחק
         self.action_queue = []                      # רשימת כל הפעולות הפעילות (תנועות וקפיצות)
-        self.scores = {'w': 0, 'b': 0}              # ניקוד כל שחקן לפי ערכי הכלים שנלכדו
+        self.scores = {WHITE: 0, BLACK: 0}          # ניקוד כל שחקן לפי ערכי הכלים שנלכדו
 
     def _piece_type(self, r, c):
         """קבל את סוג הכלי במיקום (r, c). מחזיר PieceType או None אם תא ריק"""
         token = self.board.get(r, c)
-        if token == ".":
+        if token == EMPTY_CELL:
             return None
         return PieceRegistry.get(token[1])
 
@@ -75,7 +79,7 @@ class GameEngine:
         חשב את זמן התנועה עבור כלי מסוג מסוים.
         כל סוג כלי יש זמן תנועה שונה (מהלומה, כלי כבד נע יותר לאט).
         """
-        return PieceRegistry.MOVE_DURATION_MS.get(piece_type.code, 1000)
+        return MOVE_DURATION_MS.get(piece_type.code, 1000)
 
     def _flush_actions(self):
         """
@@ -125,7 +129,7 @@ class GameEngine:
             if i in losers or not action.is_jump:
                 continue
             sr, sc = action.start
-            if snapshot[sr][sc] == ".":
+            if snapshot[sr][sc] == EMPTY_CELL:
                 continue
             # חפש כלי שמגיע אל הקופץ
             for j, other in enumerate(done):
@@ -134,14 +138,15 @@ class GameEngine:
                 if other.end == action.start:
                     osr, osc = other.start
                     captured_token = snapshot[osr][osc]
-                    if captured_token == ".":
+                    if captured_token == EMPTY_CELL:
                         continue
                     # הכלי המגיע לא מגיע לעולם - הוא נתפס בדרך!
                     self.board.set(osr, osc, ".")
+                    self.board.set(osr, osc, EMPTY_CELL)
                     # הקופץ מקבל את הנקודות (כי הכלי המגיע הוא של האויב)
                     pt = PieceRegistry.get(captured_token[1])
                     if pt:
-                        winner = 'w' if captured_token[0] == 'b' else 'b'
+                        winner = WHITE if captured_token[0] == BLACK else BLACK
                         self.scores[winner] += pt.score
 
         # 🚀 שלב 3: פתור תנועות רגילות (כלים שנעים למשבצת אחרת)
@@ -149,24 +154,24 @@ class GameEngine:
             if i in losers or action.is_jump:
                 continue
             sr, sc = action.start
-            if self.board.get(sr, sc) == ".":
+            if self.board.get(sr, sc) == EMPTY_CELL:
                 continue
             # בצע את התנועה והחזר מה שנלכד (אם יש)
             captured = self.board.move_piece(action.start, action.end)
             # אם תפסנו כלי, הוסף נקודות
-            if captured != ".":
+            if captured != EMPTY_CELL:
                 pt = PieceRegistry.get(captured[1])
                 if pt:
-                    winner = 'w' if captured[0] == 'b' else 'b'
+                    winner = WHITE if captured[0] == BLACK else BLACK
                     self.scores[winner] += pt.score
             # 👑 שלב 4: בדוק אם חייל הגיע לקצה הלוח - קדום ל-Queen
             tr, tc = action.end
             token = self.board.get(tr, tc)
-            if token and token[1] == 'P':
+            if token and token[1] == PAWN:
                 color = token[0]
-                promotion_row = 0 if color == 'w' else self.board.rows - 1
+                promotion_row = 0 if color == WHITE else self.board.rows - 1
                 if tr == promotion_row:
-                    self.board.set(tr, tc, color + 'Q')
+                    self.board.set(tr, tc, color + QUEEN)
 
     def click(self, x, y):
         """
@@ -181,7 +186,7 @@ class GameEngine:
         """
         if self.is_game_over():
             return
-        col, row = x // 100, y // 100
+        col, row = x // PIXEL_TO_GRID_DIVISOR, y // PIXEL_TO_GRID_DIVISOR
         if not self.board.in_bounds(row, col):
             return
         self._flush_actions()
@@ -193,7 +198,7 @@ class GameEngine:
             pt = self._piece_type(sr, sc)
 
             # אם קליקו על כלי שלהם - החלף בחירה
-            if target != "." and target[0] == p_token[0]:
+            if target != EMPTY_CELL and target[0] == p_token[0]:
                 self.selected = (row, col)
                 return
 
@@ -209,7 +214,7 @@ class GameEngine:
                 self.selected = None
             else:
                 self.selected = None
-        elif target != ".":
+        elif target != EMPTY_CELL:
             # בחר כלי זה
             self.selected = (row, col)
 
@@ -227,17 +232,17 @@ class GameEngine:
         """
         if self.is_game_over():
             return
-        col, row = x // 100, y // 100
+        col, row = x // PIXEL_TO_GRID_DIVISOR, y // PIXEL_TO_GRID_DIVISOR
         if not self.board.in_bounds(row, col):
             return
         # בדוק שהתא לא ריק
-        if self.board.get(row, col) == ".":
+        if self.board.get(row, col) == EMPTY_CELL:
             return
         # בדוק שהכלי לא בתנועה כבר
         if self._is_moving(row, col) or self._is_airborne(row, col):
             return
         # שנה קפיצה - שזו Action עם start == end
-        self.action_queue.append(Action((row, col), (row, col), self.current_time, PieceRegistry.JUMP_DURATION_MS))
+        self.action_queue.append(Action((row, col), (row, col), self.current_time, JUMP_DURATION_MS))
 
     def wait(self, ms):
         """
@@ -256,4 +261,29 @@ class GameEngine:
 
     def is_game_over(self):
         """בדוק אם המשחק הסתיים - כשנחה של אחד הצדדים הוא ∞ (כלומר המלך נלכד)"""
-        return self.scores['w'] == float('inf') or self.scores['b'] == float('inf')
+        return self.scores[WHITE] == float('inf') or self.scores[BLACK] == float('inf')
+
+    def display(self):
+        """
+        הצג את המצב הנוכחי של הלוח.
+        
+        Encapsulation: External code doesn't access board directly, 
+        but through engine.display() instead of engine.board.display().
+        """
+        self.board.display()
+
+    def get_scores(self):
+        """
+        קבל את הניקוד של שני השחקנים.
+        
+        Encapsulation: שחקן חיצוני לא יכול לשנות את scores ישירות.
+        """
+        return self.scores.copy()
+
+    def get_selected(self):
+        """
+        קבל את הכלי הנבחר כעת (או None אם אין בחירה).
+        
+        Encapsulation: קבלת מידע ללא אפשרות לשנות משהו.
+        """
+        return self.selected

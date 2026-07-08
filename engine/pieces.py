@@ -1,3 +1,10 @@
+from engine.config import (
+    MOVE_DURATION_MS, PIECE_SCORE, JUMP_DURATION_MS,
+    WHITE, BLACK, PAWN, KING, WHITE_DIRECTION, BLACK_DIRECTION,
+    EMPTY_CELL
+)
+
+
 class MovementRule:
     def is_legal(self, start, end, board):
         raise NotImplementedError
@@ -21,9 +28,18 @@ class BishopRule(MovementRule):
         return abs(start[0] - end[0]) == abs(start[1] - end[1])
 
 
+# ⭐ Instances created once, reused everywhere (DRY fix)
+_ROOK_RULE = RookRule()
+_BISHOP_RULE = BishopRule()
+
+
 class QueenRule(MovementRule):
+    """
+    מלכה משלבת תנועות צריח ורץ.
+    משתמשת בsingletons של RookRule וBishopRule כדי למנוע יצירת instances חדשות.
+    """
     def is_legal(self, start, end, board):
-        return RookRule().is_legal(start, end, board) or BishopRule().is_legal(start, end, board)
+        return _ROOK_RULE.is_legal(start, end, board) or _BISHOP_RULE.is_legal(start, end, board)
 
 
 class KnightRule(MovementRule):
@@ -46,8 +62,8 @@ class PawnRule(MovementRule):
             return False
 
         color = piece[0]
-        direction = -1 if color == 'w' else 1
-        start_row = board.rows - 1 if color == 'w' else 0
+        direction = WHITE_DIRECTION if color == WHITE else BLACK_DIRECTION
+        start_row = board.rows - 1 if color == WHITE else 0
 
         # תנועה רגילה: קדימה משבצת אחת למשבצת ריקה
         if sc == tc and tr == sr + direction:
@@ -60,7 +76,7 @@ class PawnRule(MovementRule):
         # לכידה: אלכסון למשבצת שיש בה אויב
         if abs(sc - tc) == 1 and tr == sr + direction:
             target = board.get(tr, tc)
-            return target != "." and target[0] != color
+            return target != EMPTY_CELL and target[0] != color
 
         return False
     
@@ -78,28 +94,11 @@ class PieceType:
         return self.rule.is_jumper()
 
 
-MOVE_DURATION_MS = {
-    'K': 1000,
-    'Q': 2000,
-    'R': 2000,
-    'B': 2000,
-    'N': 3000,
-    'P': 500,
-}
-
-PIECE_SCORE = {
-    'K': float('inf'),
-    'Q': 9,
-    'R': 5,
-    'B': 3,
-    'N': 3,
-    'P': 1,
-}
-
-JUMP_DURATION_MS = 1000
-
-
 class PieceRegistry:
+    """
+    מרשם מרכזי של כל הכלים וקונפיגורציה.
+    עקרון Registry Pattern - כל הקונפיגורציה במקום אחד.
+    """
     _registry = {}
     MOVE_DURATION_MS = MOVE_DURATION_MS
     PIECE_SCORE = PIECE_SCORE

@@ -1,3 +1,6 @@
+from engine.config import EMPTY_CELL
+
+
 class Board:
     def __init__(self, board_lines):
         self.grid = [line.split() for line in board_lines]
@@ -14,7 +17,7 @@ class Board:
         self.grid[r][c] = value
 
     def is_empty(self, r, c):
-        return self.grid[r][c] == "."
+        return self.grid[r][c] == EMPTY_CELL
 
     def is_path_blocked(self, start, end, is_jumper=False):
         if is_jumper:
@@ -36,7 +39,7 @@ class Board:
         tr, tc = end
         captured = self.grid[tr][tc]
         self.grid[tr][tc] = self.grid[sr][sc]
-        self.grid[sr][sc] = "."
+        self.grid[sr][sc] = EMPTY_CELL
         return captured
 
     def display(self):
