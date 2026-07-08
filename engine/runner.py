@@ -18,8 +18,6 @@ def run():
     engine = GameEngine(board)
 
     for cmd in commands:
-        if engine.is_game_over():
-            break
         parts = cmd.split()
         if not parts:
             continue
