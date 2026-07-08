@@ -2,11 +2,11 @@ from engine.pieces import PieceRegistry
 
 MOVE_DURATION_MS = {
     'K': 1000,
-    'Q': 2000,
-    'R': 2000,
-    'B': 2000,
-    'N': 3000,
-    'P': 500,
+    'Q': 1000,
+    'R': 1000,
+    'B': 1000,
+    'N': 1000,
+    'P': 1000,
 }
 
 
@@ -23,14 +23,11 @@ class Action:
 
 
 class GameEngine:
-    COOLDOWN_MS = 500
-
     def __init__(self, board):
         self.board = board
         self.selected = None
         self.current_time = 0
         self.action_queue = []
-        self.cooldowns = {}
         self.scores = {'w': 0, 'b': 0}
 
     def _piece_type(self, r, c):
@@ -41,6 +38,16 @@ class GameEngine:
 
     def _is_moving(self, r, c):
         return any(a.start == (r, c) for a in self.action_queue)
+
+    def _is_destination_taken(self, tr, tc):
+        return any(a.end == (tr, tc) for a in self.action_queue)
+
+    def _route_conflicts(self, start, end):
+        """בודק אם יש כלי אחר שכבר נע לאותה עמודה יעד"""
+        for a in self.action_queue:
+            if a.end[1] == end[1]:  # אותה עמודה יעד
+                return True
+        return False
 
     def _travel_time(self, start, end, piece_type):
         return MOVE_DURATION_MS.get(piece_type.code, 1000)
@@ -59,7 +66,6 @@ class GameEngine:
                 if pt:
                     winner = 'w' if captured[0] == 'b' else 'b'
                     self.scores[winner] += pt.score
-            self.cooldowns[(tr, tc)] = action.end_time + self.COOLDOWN_MS
 
     def click(self, x, y):
         col, row = x // 100, y // 100
@@ -79,7 +85,9 @@ class GameEngine:
 
             if pt and pt.is_legal_move((sr, sc), (row, col), self.board) \
                     and not self.board.is_path_blocked((sr, sc), (row, col), pt.is_jumper()) \
-                    and not self._is_moving(sr, sc):
+                    and not self._is_moving(sr, sc) \
+                    and not self._is_destination_taken(row, col) \
+                    and not self._route_conflicts((sr, sc), (row, col)):
                 duration = self._travel_time((sr, sc), (row, col), pt)
                 self.action_queue.append(Action((sr, sc), (row, col), self.current_time, duration))
                 self.selected = None
