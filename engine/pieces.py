@@ -93,9 +93,18 @@ MOVE_DURATION_MS = {
     'P': 500,
 }
 
-PieceRegistry.register(PieceType('K', KingRule(),   MOVE_DURATION_MS['K'], float('inf')))
-PieceRegistry.register(PieceType('Q', QueenRule(),  MOVE_DURATION_MS['Q'], 9))
-PieceRegistry.register(PieceType('R', RookRule(),   MOVE_DURATION_MS['R'], 5))
-PieceRegistry.register(PieceType('B', BishopRule(), MOVE_DURATION_MS['B'], 3))
-PieceRegistry.register(PieceType('N', KnightRule(), MOVE_DURATION_MS['N'], 3))
-PieceRegistry.register(PieceType('P', PawnRule(),   MOVE_DURATION_MS['P'], 1))
+PIECE_SCORE = {
+    'K': float('inf'),
+    'Q': 9,
+    'R': 5,
+    'B': 3,
+    'N': 3,
+    'P': 1,
+}
+
+PieceRegistry.register(PieceType('K', KingRule(),   MOVE_DURATION_MS['K'], PIECE_SCORE['K']))
+PieceRegistry.register(PieceType('Q', QueenRule(),  MOVE_DURATION_MS['Q'], PIECE_SCORE['Q']))
+PieceRegistry.register(PieceType('R', RookRule(),   MOVE_DURATION_MS['R'], PIECE_SCORE['R']))
+PieceRegistry.register(PieceType('B', BishopRule(), MOVE_DURATION_MS['B'], PIECE_SCORE['B']))
+PieceRegistry.register(PieceType('N', KnightRule(), MOVE_DURATION_MS['N'], PIECE_SCORE['N']))
+PieceRegistry.register(PieceType('P', PawnRule(),   MOVE_DURATION_MS['P'], PIECE_SCORE['P']))
