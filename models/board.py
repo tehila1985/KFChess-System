@@ -1,0 +1,68 @@
+from typing import Optional
+from models.piece import Piece
+from models.position import Position
+
+EMPTY = "."
+
+
+class Board:
+    """
+    Pure data model of the chess board.
+    No pixels, no timing, no UI concerns.
+    Grid cells hold piece tokens (e.g. 'wK', 'bP') or EMPTY ('.').
+    """
+
+    def __init__(self, board_lines: list[str]):
+        self._grid = [line.split() for line in board_lines]
+        self.rows = len(self._grid)
+        self.cols = len(self._grid[0]) if self._grid else 0
+
+    def in_bounds(self, pos: Position) -> bool:
+        return 0 <= pos.row < self.rows and 0 <= pos.col < self.cols
+
+    def get_piece(self, pos: Position) -> Optional[Piece]:
+        """Returns the Piece at pos, or None if the cell is empty."""
+        token = self._grid[pos.row][pos.col]
+        return None if token == EMPTY else Piece.from_token(token)
+
+    def set_piece(self, pos: Position, piece: Optional[Piece]) -> None:
+        """Places piece at pos, or clears the cell if piece is None."""
+        self._grid[pos.row][pos.col] = piece.token if piece is not None else EMPTY
+
+    def is_empty(self, pos: Position) -> bool:
+        return self._grid[pos.row][pos.col] == EMPTY
+
+    # ------------------------------------------------------------------
+    # Helpers used by the engine layer (kept for compatibility)
+    # ------------------------------------------------------------------
+
+    def get_token(self, row: int, col: int) -> str:
+        """Raw token access — used by engine.board.Board-compatible callers."""
+        return self._grid[row][col]
+
+    def set_token(self, row: int, col: int, token: str) -> None:
+        self._grid[row][col] = token
+
+    def is_path_blocked(self, start: tuple, end: tuple, is_jumper: bool = False) -> bool:
+        if is_jumper:
+            return False
+        sr, sc = start
+        tr, tc = end
+        dr = 0 if sr == tr else (1 if tr > sr else -1)
+        dc = 0 if sc == tc else (1 if tc > sc else -1)
+        r, c = sr + dr, sc + dc
+        while (r, c) != (tr, tc):
+            if not self.in_bounds(Position(r, c)) or not self.is_empty(Position(r, c)):
+                return True
+            r += dr
+            c += dc
+        return False
+
+    def move_piece_coords(self, start: tuple, end: tuple) -> str:
+        """Moves a piece by raw (row, col) coords; returns the captured token."""
+        sr, sc = start
+        tr, tc = end
+        captured = self._grid[tr][tc]
+        self._grid[tr][tc] = self._grid[sr][sc]
+        self._grid[sr][sc] = EMPTY
+        return captured
