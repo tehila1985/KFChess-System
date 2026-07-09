@@ -1,7 +1,7 @@
 import pytest
-from models.board import Board
-from models.piece import Piece
-from models.position import Position
+from engine.models.board import Board
+from engine.models.piece import Piece
+from engine.models.position import Position
 
 
 @pytest.fixture

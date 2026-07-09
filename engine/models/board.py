@@ -1,6 +1,6 @@
 from typing import Optional
-from models.piece import Piece
-from models.position import Position
+from engine.models.piece import Piece
+from engine.models.position import Position
 
 EMPTY = "."
 
