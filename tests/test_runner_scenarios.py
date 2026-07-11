@@ -154,7 +154,7 @@ class TestPathBlocking:
 
     def test_knight_jumps_over_blockers(self, capsys):
         out = run(
-            "Board:\nwN wP .\nwP . .\n. . .\nCommands:\nclick 50 50\nclick 150 250\nwait 6000\nprint board\n",
+            "Board:\nwN wP .\nwP . .\n. . .\nCommands:\nclick 50 50\nclick 150 250\nwait 3000\nprint board\n",
             capsys,
         )
         assert out == ". wP .\nwP . .\n. wN ."
@@ -274,7 +274,7 @@ class TestCollision:
 
     def test_dynamic_block_tactic_not_in_common_route(self, capsys):
         out = run(
-            "Board:\n. . . .\nwQ . . bK\n. . bP .\n. . . .\nCommands:\nclick 50 150\nclick 350 150\nwait 200\nclick 250 250\nclick 250 150\nwait 6000\nprint board\n",
+            "Board:\n. . . .\nwQ . . bK\n. . bP .\n. . . .\nCommands:\nclick 50 150\nclick 350 150\nwait 200\nclick 250 250\nclick 250 150\nwait 3000\nprint board\n",
             capsys,
         )
         assert out == ". . . .\n. . . wQ\n. . bP .\n. . . ."
@@ -292,7 +292,7 @@ class TestGameOver:
 
     def test_no_moves_after_game_over(self, capsys):
         out = run(
-            "Board:\nwR . bK\nbR . .\nCommands:\nclick 50 50\nclick 250 50\nwait 2000\nclick 50 150\nclick 150 150\nwait 2000\nprint board\n",
+            "Board:\nwR . bK\nbR . .\nCommands:\nclick 50 50\nclick 250 50\nwait 2000\nclick 50 150\nclick 150 150\nwait 1000\nprint board\n",
             capsys,
         )
         assert out == ". . wR\nbR . ."
@@ -345,7 +345,7 @@ class TestPawnSpecial:
 
     def test_promoted_queen_moves_diagonal(self, capsys):
         out = run(
-            "Board:\n. . .\n. wP .\n. . .\nCommands:\nclick 150 150\nclick 150 50\nwait 1000\nclick 150 50\nclick 250 150\nwait 2000\nprint board\n",
+            "Board:\n. . .\n. wP .\n. . .\nCommands:\nclick 150 150\nclick 150 50\nwait 1000\nclick 150 50\nclick 250 150\nwait 1000\nprint board\n",
             capsys,
         )
         assert out == ". . .\n. . wQ\n. . ."
