@@ -36,14 +36,6 @@ class Board:
     def is_empty(self, pos: Position) -> bool:
         return self._grid[pos.row][pos.col] == EMPTY
 
-    # ── Raw token access (לתאימות עם קוד ישן) ─────────────────────────
-
-    def get_token(self, row: int, col: int) -> str:
-        return self._grid[row][col]
-
-    def set_token(self, row: int, col: int, token: str) -> None:
-        self._grid[row][col] = token
-
     def is_path_blocked(self, start: tuple, end: tuple, is_jumper: bool = False) -> bool:
         """
         בודק אם יש כלי חוסם בנתיב הישר בין start ל-end.

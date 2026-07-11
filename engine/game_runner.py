@@ -1,4 +1,3 @@
-import sys
 from engine.game_engine import GameEngine
 from engine.rules.rule_engine import RuleEngine
 from engine.arbiter.real_time_arbiter import RealTimeArbiter
