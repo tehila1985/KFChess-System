@@ -87,8 +87,8 @@ class TestScenarioRookMove:
         assert len(snap.active_motions) == 1
 
         # ── final tick — piece arrives ─────────────────────────────────
-        engine.tick(500)
-        print_step("After tick(500) — piece arrived", renderer, engine)
+        engine.tick(1500)
+        print_step("After tick(1500) — piece arrived", renderer, engine)
         snap = engine.get_snapshot()
         assert snap.grid[0][0] == ".",   "src must remain empty after arrival"
         assert snap.grid[0][3] == "wR",  "wR must be at destination"
@@ -116,8 +116,8 @@ class TestScenarioCapture:
         assert result == RequestMoveResult.ACCEPTED
         print_step("Move requested — wR targeting bR", renderer, engine)
 
-        engine.tick(1000)
-        print_step("After tick(1000) — capture resolved", renderer, engine)
+        engine.tick(2000)
+        print_step("After tick(2000) — capture resolved", renderer, engine)
 
         snap = engine.get_snapshot()
         assert snap.grid[0][3] == "wR",  "wR must occupy the captured square"
@@ -145,8 +145,8 @@ class TestScenarioKingCapture:
         assert result == RequestMoveResult.ACCEPTED
         print_step("wR targeting bK", renderer, engine)
 
-        engine.tick(1000)
-        print_step("After tick(1000) — king captured", renderer, engine)
+        engine.tick(2000)
+        print_step("After tick(2000) — king captured", renderer, engine)
 
         snap = engine.get_snapshot()
         assert snap.game_over is True
@@ -158,7 +158,7 @@ class TestScenarioKingCapture:
 
         ctrl.on_click(*px(0, 0))
         ctrl.on_click(*px(2, 0))
-        engine.tick(1000)
+        engine.tick(2000)
 
         # try to move the winning rook — must be rejected
         ctrl.on_click(*px(2, 0))
@@ -202,8 +202,8 @@ class TestScenarioPieceBusy:
         print_step("Second command on in-transit piece rejected (PIECE_BUSY)", renderer, engine)
 
         # complete the original motion
-        engine.tick(1000)
-        print_step("After tick(1000) - original move completed", renderer, engine)
+        engine.tick(2000)
+        print_step("After tick(2000) - original move completed", renderer, engine)
         snap = engine.get_snapshot()
         assert snap.grid[0][3] == "wR"
 
@@ -238,8 +238,8 @@ class TestScenarioConcurrentMoves:
         assert len(snap.active_motions) == 2
         print_step("Both pieces in transit", renderer, engine)
 
-        engine.tick(1000)
-        print_step("After tick(1000) — both arrived", renderer, engine)
+        engine.tick(2000)
+        print_step("After tick(2000) — both arrived", renderer, engine)
 
         snap = engine.get_snapshot()
         assert snap.grid[0][2] == "wR", "wR must be at (0,2)"

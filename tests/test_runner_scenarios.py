@@ -200,14 +200,14 @@ class TestPathBlocking:
 class TestTiming:
     def test_one_cell_move_before_arrival_board_unchanged(self, capsys):
         out = run(
-            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 500\nprint board\n",
+            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 1000\nprint board\n",
             capsys,
         )
         assert out == "wR . ."
 
     def test_two_cell_move_before_and_after_arrival(self, capsys):
         out = run(
-            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 250 50\nwait 999\nprint board\nwait 1\nprint board\n",
+            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 250 50\nwait 1000\nprint board\nwait 1000\nprint board\n",
             capsys,
         )
         assert out == "wR . .\n. . wR"
@@ -221,21 +221,21 @@ class TestTiming:
 
     def test_no_cooldown_state_in_common_route(self, capsys):
         out = run(
-            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 1000\nprint board\n",
+            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 2000\nprint board\n",
             capsys,
         )
         assert out == ". wR ."
 
     def test_can_move_again_after_arrival_without_cooldown(self, capsys):
         out = run(
-            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 1000\nclick 150 50\nclick 250 50\nwait 1000\nprint board\n",
+            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 2000\nclick 150 50\nclick 250 50\nwait 2000\nprint board\n",
             capsys,
         )
         assert out == ". . wR"
 
     def test_piece_is_ready_after_arrival_without_cooldown(self, capsys):
         out = run(
-            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 1000\nclick 150 50\nclick 250 50\nwait 1000\nprint board\n",
+            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 2000\nclick 150 50\nclick 250 50\nwait 2000\nprint board\n",
             capsys,
         )
         assert out == ". . wR"
@@ -253,21 +253,21 @@ class TestTiming:
 class TestCollision:
     def test_opposite_colors_do_not_move_concurrently_in_common_route(self, capsys):
         out = run(
-            "Board:\nwR . .\n. . .\nbR . .\nCommands:\nclick 50 50\nclick 250 50\nclick 50 250\nclick 250 250\nwait 2000\nprint board\n",
+            "Board:\nwR . .\n. . .\nbR . .\nCommands:\nclick 50 50\nclick 250 50\nclick 50 250\nclick 250 250\nwait 4000\nprint board\n",
             capsys,
         )
         assert out == ". . wR\n. . .\nbR . ."
 
     def test_enemy_collision_white_started_first(self, capsys):
         out = run(
-            "Board:\nwR . . bR\nCommands:\nclick 50 50\nclick 350 50\nclick 350 50\nclick 50 50\nwait 3000\nprint board\n",
+            "Board:\nwR . . bR\nCommands:\nclick 50 50\nclick 350 50\nclick 350 50\nclick 50 50\nwait 4000\nprint board\n",
             capsys,
         )
         assert out == ". . . wR"
 
     def test_enemy_collision_black_started_first(self, capsys):
         out = run(
-            "Board:\nwR . . bR\nCommands:\nclick 350 50\nclick 50 50\nclick 50 50\nclick 350 50\nwait 3000\nprint board\n",
+            "Board:\nwR . . bR\nCommands:\nclick 350 50\nclick 50 50\nclick 50 50\nclick 350 50\nwait 4000\nprint board\n",
             capsys,
         )
         assert out == "bR . . ."
@@ -292,7 +292,7 @@ class TestGameOver:
 
     def test_no_moves_after_game_over(self, capsys):
         out = run(
-            "Board:\nwR . bK\nbR . .\nCommands:\nclick 50 50\nclick 250 50\nwait 2000\nclick 50 150\nclick 150 150\nwait 1000\nprint board\n",
+            "Board:\nwR . bK\nbR . .\nCommands:\nclick 50 50\nclick 250 50\nwait 2000\nclick 50 150\nclick 150 150\nwait 2000\nprint board\n",
             capsys,
         )
         assert out == ". . wR\nbR . ."
@@ -363,14 +363,14 @@ class TestJump:
 
     def test_airborne_piece_captures_arriving_enemy(self, capsys):
         out = run(
-            "Board:\n. . .\nwK bR .\n. . .\nCommands:\njump 50 150\nclick 150 150\nclick 50 150\nwait 1000\nprint board\n",
+            "Board:\n. . .\nwK bR .\n. . .\nCommands:\njump 50 150\nclick 150 150\nclick 50 150\nwait 2000\nprint board\n",
             capsys,
         )
         assert out == ". . .\nwK . .\n. . ."
 
     def test_jump_too_late_does_not_save_piece(self, capsys):
         out = run(
-            "Board:\n. . .\nwK bR .\n. . .\nCommands:\nclick 150 150\nclick 50 150\nwait 1000\njump 50 150\nprint board\n",
+            "Board:\n. . .\nwK bR .\n. . .\nCommands:\nclick 150 150\nclick 50 150\nwait 2000\njump 50 150\nprint board\n",
             capsys,
         )
         assert out == ". . .\nbR . .\n. . ."

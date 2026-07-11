@@ -27,9 +27,9 @@ BLACK_DIRECTION = 1   # שחור זז "למטה" (rows גדולות)
 MOVE_DURATION_MS = {
     KING: 1000,
     QUEEN: 2000,
-    ROOK: 1000,
+    ROOK: 2000,
     BISHOP: 2000,
-    KNIGHT: 2000,
+    KNIGHT: 3000,
     PAWN: 500,
 }
 

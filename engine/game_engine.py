@@ -9,7 +9,7 @@ from engine.models.piece import Piece
 from engine.models.position import Position
 from engine.rules.rule_engine import MoveStatus, RuleEngine
 from engine.arbiter.real_time_arbiter import RealTimeArbiter
-from engine.config import WHITE, BLACK, KING, QUEEN, PAWN, MOVE_DURATION_MS, PIXEL_TO_GRID_DIVISOR
+from engine.config import WHITE, BLACK, KING, QUEEN, PAWN,PIECE_SCORE, MOVE_DURATION_MS, PIXEL_TO_GRID_DIVISOR
 
 
 class RequestMoveResult(Enum):
@@ -142,5 +142,4 @@ class GameEngine:
             self._winner    = scorer
             self._scores[scorer] = float('inf')
         else:
-            from engine.config import PIECE_SCORE
             self._scores[scorer] += PIECE_SCORE.get(captured.type_code, 0)
