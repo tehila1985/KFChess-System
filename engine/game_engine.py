@@ -113,13 +113,18 @@ class GameEngine:
                 self._apply_capture(motion.captured)
 
     def get_snapshot(self) -> GameSnapshot:
-        grid = tuple(tuple(row) for row in self._board._grid)
+        # בנה grid עם כלים בתנועה מוצגים ב-src שלהם
+        grid = [list(row) for row in self._board._grid]
+        for m in self._arbiter.active_motions:
+            if not m.is_jump and grid[m.src.row][m.src.col] == ".":
+                grid[m.src.row][m.src.col] = m.piece.token
+        frozen_grid = tuple(tuple(row) for row in grid)
         motions = tuple(
             MotionSummary(m.piece, m.src, m.dst, m.start_time, m.end_time)
             for m in self._arbiter.active_motions
         )
         return GameSnapshot(
-            grid           = grid,
+            grid           = frozen_grid,
             scores         = dict(self._scores),
             game_over      = self._game_over,
             winner         = self._winner,

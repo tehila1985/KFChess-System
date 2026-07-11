@@ -73,9 +73,9 @@ class TestScenarioRookMove:
         assert ctrl.pending_src is None
         print_step("After requesting move -> (0,3)  [rook in transit]", renderer, engine)
 
-        # source cleared immediately; destination not yet set
+        # source shown at src while in transit; destination not yet set
         snap = engine.get_snapshot()
-        assert snap.grid[0][0] == ".", "src must be empty while piece is in transit"
+        assert snap.grid[0][0] == "wR", "src must show piece while in transit"
         assert snap.grid[0][3] == ".", "dst must still be empty before arrival"
         assert len(snap.active_motions) == 1
 
