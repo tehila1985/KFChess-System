@@ -12,7 +12,7 @@ class Board:
     Grid cells hold piece tokens (e.g. 'wK', 'bP') or EMPTY ('.').
     """
 
-    def __init__(self, board_lines: list[str]):
+    def __init__(self, board_lines):
         self._grid = [line.split() for line in board_lines]
         self.rows = len(self._grid)
         self.cols = len(self._grid[0]) if self._grid else 0

@@ -8,16 +8,4 @@ class TextRenderer:
     """
 
     def render(self, snapshot: GameSnapshot) -> str:
-        lines = []
-
-        for row in snapshot.grid:
-            lines.append(" ".join(row))
-
-        lines.append(f"Score  w:{snapshot.scores.get('w', 0)}  b:{snapshot.scores.get('b', 0)}")
-
-        if snapshot.game_over:
-            lines.append(f"GAME OVER — winner: {snapshot.winner}")
-        else:
-            lines.append("Game in progress")
-
-        return "\n".join(lines)
+        return "\n".join(" ".join(row) for row in snapshot.grid)
