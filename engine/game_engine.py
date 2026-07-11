@@ -9,15 +9,13 @@ from engine.models.piece import Piece
 from engine.models.position import Position
 from engine.rules.rule_engine import MoveStatus, RuleEngine
 from engine.arbiter.real_time_arbiter import RealTimeArbiter
-from engine.config import WHITE, BLACK, KING, MOVE_DURATION_MS
+from engine.config import WHITE, BLACK, KING, QUEEN, PAWN, MOVE_DURATION_MS, PIXEL_TO_GRID_DIVISOR
 
-
-# ── Result enum returned to the controller ────────────────────────────
 
 class RequestMoveResult(Enum):
     ACCEPTED             = auto()
-    GAME_OVER            = auto()   # move rejected — game already finished
-    PIECE_BUSY           = auto()   # piece is already in motion
+    GAME_OVER            = auto()
+    PIECE_BUSY           = auto()
     OUTSIDE_BOARD        = auto()
     EMPTY_SOURCE         = auto()
     FRIENDLY_DESTINATION = auto()
@@ -33,8 +31,6 @@ _STATUS_MAP: dict[MoveStatus, RequestMoveResult] = {
 }
 
 
-# ── Read-only snapshot DTO ─────────────────────────────────────────────
-
 @dataclass(frozen=True)
 class MotionSummary:
     piece:      Piece
@@ -46,44 +42,34 @@ class MotionSummary:
 
 @dataclass(frozen=True)
 class GameSnapshot:
-    grid:           tuple           # tuple[tuple[str, ...], ...]  — raw tokens
-    scores:         dict            # {color: numeric_score}
+    grid:           tuple
+    scores:         dict
     game_over:      bool
-    winner:         Optional[str]   # 'w', 'b', or None
-    active_motions: tuple           # tuple[MotionSummary, ...]
+    winner:         Optional[str]
+    active_motions: tuple
 
-
-# ── GameEngine ─────────────────────────────────────────────────────────
 
 class GameEngine:
-    """
-    Orchestrator / service layer.
-
-    Wires together Board, RuleEngine, and RealTimeArbiter.
-    All three are injected — no hard-coded construction here.
-    No UI, no pixels, no threads, no sleep.
-    """
-
     def __init__(self, board: Board, rule_engine: RuleEngine, arbiter: RealTimeArbiter):
-        self._board       = board
-        self._rules       = rule_engine
-        self._arbiter     = arbiter
-        self._scores      = {WHITE: 0, BLACK: 0}
-        self._game_over   = False
+        self._board     = board
+        self._rules     = rule_engine
+        self._arbiter   = arbiter
+        self._scores    = {WHITE: 0, BLACK: 0}
+        self._game_over = False
         self._winner: Optional[str] = None
 
-    # ── public interface ───────────────────────────────────────────────
+    def get_piece_at(self, pos: Position) -> Optional[Piece]:
+        # בדוק גם בלוח וגם בתנועות פעילות
+        piece = self._board.get_piece(pos)
+        if piece is not None:
+            return piece
+        # כלי שנמצא בתנועה - src שלו נמחק מהלוח, חפש לפי dst
+        for m in self._arbiter.active_motions:
+            if m.src == pos:
+                return m.piece
+        return None
 
     def request_move(self, src: Position, dst: Position) -> RequestMoveResult:
-        """
-        Gate for all move requests.
-
-        Steps (in order):
-        1. Reject if game is already over.
-        2. Reject if the piece at src is already in motion.
-        3. Validate geometry/rules via RuleEngine.
-        4. If valid, register the motion with the Arbiter.
-        """
         if self._game_over:
             return RequestMoveResult.GAME_OVER
 
@@ -94,31 +80,44 @@ class GameEngine:
         if status != MoveStatus.OK:
             return _STATUS_MAP[status]
 
-        piece    = self._board.get_piece(src)   # guaranteed non-None after OK
+        piece    = self._board.get_piece(src)
         duration = MOVE_DURATION_MS.get(piece.type_code, 1000)
         self._arbiter.start_motion(piece, src, dst, duration)
         return RequestMoveResult.ACCEPTED
 
+    def request_jump(self, x: int, y: int) -> None:
+        if self._game_over:
+            return
+        col = x // PIXEL_TO_GRID_DIVISOR
+        row = y // PIXEL_TO_GRID_DIVISOR
+        pos = Position(row, col)
+        if not self._board.in_bounds(pos):
+            return
+        if self._board.get_piece(pos) is None:
+            return
+        if self._is_piece_busy(pos):
+            return
+        self._arbiter.start_jump(pos)
+
     def tick(self, delta_ms: int) -> None:
-        """
-        Advance logical time by delta_ms.
-        Processes every motion that completes in this tick.
-        Sets game_over=True if a King is captured.
-        """
         completed = self._arbiter.advance_time(delta_ms)
         for motion in completed:
+            # promotion: חייל שהגיע לקצה הלוח
+            dst = motion.dst
+            piece = self._board.get_piece(dst)
+            if piece is not None and piece.type_code == PAWN:
+                promotion_row = 0 if piece.color == WHITE else self._board.rows - 1
+                if dst.row == promotion_row:
+                    self._board.set_piece(dst, Piece(piece.color, QUEEN))
             if motion.captured is not None:
                 self._apply_capture(motion.captured)
 
     def get_snapshot(self) -> GameSnapshot:
-        """Return an immutable view of the current game state."""
         grid = tuple(tuple(row) for row in self._board._grid)
-
         motions = tuple(
             MotionSummary(m.piece, m.src, m.dst, m.start_time, m.end_time)
             for m in self._arbiter.active_motions
         )
-
         return GameSnapshot(
             grid           = grid,
             scores         = dict(self._scores),
@@ -127,9 +126,8 @@ class GameEngine:
             active_motions = motions,
         )
 
-    # ── internals ─────────────────────────────────────────────────────
-
     def _is_piece_busy(self, src: Position) -> bool:
+        # כלי עסוק אם יש תנועה פעילה שיצאה מ-src, או קפיצה שנמצאת ב-src
         return any(m.src == src for m in self._arbiter.active_motions)
 
     def _apply_capture(self, captured: Piece) -> None:
