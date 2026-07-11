@@ -51,9 +51,7 @@ def print_step(label: str, renderer: TextRenderer, engine: GameEngine) -> None:
 class TestScenarioRookMove:
     """
     Board:  wR . . .
-    Move:   wR (0,0) → (0,3)   [rook, duration=1000 ms]
-    Ticks:  500 ms (in-flight) + 500 ms (arrives)
-    Assert: wR is at (0,3), (0,0) is empty, score unchanged.
+    Move:   wR (0,0) → (0,3)   [rook, 3 cells * 1000ms = 3000ms]
     """
 
     def test_rook_moves_to_destination(self):
@@ -61,34 +59,26 @@ class TestScenarioRookMove:
 
         print_step("INITIAL STATE", renderer, engine)
 
-        # ── select source ──────────────────────────────────────────────
         result = ctrl.on_click(*px(0, 0))
         assert result is None, "first click should select, not submit"
         assert ctrl.pending_src == Position(0, 0)
-        print_step("After selecting wR at (0,0)", renderer, engine)
 
-        # ── submit move ────────────────────────────────────────────────
         result = ctrl.on_click(*px(3, 0))
         assert result == RequestMoveResult.ACCEPTED
         assert ctrl.pending_src is None
-        print_step("After requesting move -> (0,3)  [rook in transit]", renderer, engine)
 
-        # source shown at src while in transit; destination not yet set
         snap = engine.get_snapshot()
         assert snap.grid[0][0] == "wR", "src must show piece while in transit"
         assert snap.grid[0][3] == ".", "dst must still be empty before arrival"
         assert len(snap.active_motions) == 1
 
-        # ── partial tick — piece still in flight ───────────────────────
         engine.tick(500)
-        print_step("After tick(500) — still in transit", renderer, engine)
         snap = engine.get_snapshot()
         assert snap.grid[0][3] == ".", "piece must not arrive before duration elapses"
         assert len(snap.active_motions) == 1
 
-        # ── final tick — piece arrives ─────────────────────────────────
-        engine.tick(1500)
-        print_step("After tick(1500) — piece arrived", renderer, engine)
+        engine.tick(2500)   # total 3000ms = 3 cells * 1000ms
+        print_step("After tick(3000) — piece arrived", renderer, engine)
         snap = engine.get_snapshot()
         assert snap.grid[0][0] == ".",   "src must remain empty after arrival"
         assert snap.grid[0][3] == "wR",  "wR must be at destination"
@@ -102,26 +92,20 @@ class TestScenarioRookMove:
 class TestScenarioCapture:
     """
     Board:  wR . . bR
-    Move:   wR (0,0) → (0,3)   captures bR
-    Assert: score["w"] == 5 (rook value), bR gone.
+    Move:   wR (0,0) → (0,3)   captures bR  [3 cells * 1000ms = 3000ms]
     """
 
     def test_capture_updates_score(self):
         engine, ctrl, renderer = build(["wR . . bR"])
 
-        print_step("INITIAL STATE", renderer, engine)
-
         ctrl.on_click(*px(0, 0))
         result = ctrl.on_click(*px(3, 0))
         assert result == RequestMoveResult.ACCEPTED
-        print_step("Move requested — wR targeting bR", renderer, engine)
 
-        engine.tick(2000)
-        print_step("After tick(2000) — capture resolved", renderer, engine)
-
+        engine.tick(3000)   # 3 cells * 1000ms
         snap = engine.get_snapshot()
-        assert snap.grid[0][3] == "wR",  "wR must occupy the captured square"
-        assert snap.scores["w"] == 5,    "white scores 5 for capturing a rook"
+        assert snap.grid[0][3] == "wR"
+        assert snap.scores["w"] == 5
         assert snap.scores["b"] == 0
         assert snap.game_over is False
 
@@ -131,23 +115,17 @@ class TestScenarioCapture:
 class TestScenarioKingCapture:
     """
     Board:  wR . bK
-    Move:   wR (0,0) → (0,2)   captures bK
-    Assert: game_over=True, winner='w'.
+    Move:   wR (0,0) → (0,2)   captures bK  [2 cells * 1000ms = 2000ms]
     """
 
     def test_king_capture_ends_game(self):
         engine, ctrl, renderer = build(["wR . bK"])
 
-        print_step("INITIAL STATE", renderer, engine)
-
         ctrl.on_click(*px(0, 0))
         result = ctrl.on_click(*px(2, 0))
         assert result == RequestMoveResult.ACCEPTED
-        print_step("wR targeting bK", renderer, engine)
 
-        engine.tick(2000)
-        print_step("After tick(2000) — king captured", renderer, engine)
-
+        engine.tick(2000)   # 2 cells * 1000ms
         snap = engine.get_snapshot()
         assert snap.game_over is True
         assert snap.winner == "w"
@@ -155,16 +133,13 @@ class TestScenarioKingCapture:
 
     def test_no_moves_accepted_after_game_over(self):
         engine, ctrl, renderer = build(["wR . bK"])
-
         ctrl.on_click(*px(0, 0))
         ctrl.on_click(*px(2, 0))
-        engine.tick(2000)
+        engine.tick(2000)   # 2 cells * 1000ms
 
-        # try to move the winning rook — must be rejected
         ctrl.on_click(*px(2, 0))
         result = ctrl.on_click(*px(1, 0))
         assert result == RequestMoveResult.GAME_OVER
-        print_step("Move rejected after game over", renderer, engine)
 
 
 # ── Scenario 4: piece-busy rejection ─────────────────────────────────
@@ -172,38 +147,22 @@ class TestScenarioKingCapture:
 class TestScenarioPieceBusy:
     """
     Board:  wR . . .
-    Move 1: wR (0,0) → (0,3)   accepted
+    Move 1: wR (0,0) → (0,3)   accepted  [3 cells * 1000ms = 3000ms]
     Move 2: same piece again    rejected as PIECE_BUSY
     """
 
     def test_busy_piece_cannot_move_again(self):
-        """
-        Once start_motion fires, the arbiter clears the source square.
-        Clicking that empty square returns EMPTY_SOURCE — the piece is
-        unreachable for a second command while it is in transit.
-        PIECE_BUSY is the engine-level guard; EMPTY_SOURCE is what the
-        rule-engine sees when the board square is already cleared.
-        Both prove the piece cannot be commanded twice mid-flight.
-        """
         engine, ctrl, renderer = build(["wR . . ."])
-
-        print_step("INITIAL STATE", renderer, engine)
 
         ctrl.on_click(*px(0, 0))
         r1 = ctrl.on_click(*px(3, 0))
         assert r1 == RequestMoveResult.ACCEPTED
-        print_step("First move accepted - wR in transit", renderer, engine)
 
-        # src is now empty on the board, but the engine still tracks the
-        # motion by its original src position -> PIECE_BUSY fires first
         ctrl.on_click(*px(0, 0))
         r2 = ctrl.on_click(*px(1, 0))
         assert r2 == RequestMoveResult.PIECE_BUSY
-        print_step("Second command on in-transit piece rejected (PIECE_BUSY)", renderer, engine)
 
-        # complete the original motion
-        engine.tick(2000)
-        print_step("After tick(2000) - original move completed", renderer, engine)
+        engine.tick(3000)   # 3 cells * 1000ms
         snap = engine.get_snapshot()
         assert snap.grid[0][3] == "wR"
 
@@ -213,37 +172,27 @@ class TestScenarioPieceBusy:
 class TestScenarioConcurrentMoves:
     """
     Board:  wR . . bR
-            .  . .  .
-    Both pieces move toward each other's starting column simultaneously.
-    wR (0,0)→(0,2)  and  bR (0,3)→(0,1) — they do NOT swap squares
-    so there is no head-to-head; both land independently.
+    wR (0,0)→(0,2)  and  bR (0,3)→(0,1)  [2 cells * 1000ms = 2000ms]
     """
 
     def test_two_pieces_move_concurrently(self):
         engine, ctrl, renderer = build(["wR . . bR", ". . . ."])
 
-        print_step("INITIAL STATE", renderer, engine)
-
-        # move wR
         ctrl.on_click(*px(0, 0))
         r1 = ctrl.on_click(*px(2, 0))
         assert r1 == RequestMoveResult.ACCEPTED
 
-        # move bR
         ctrl.on_click(*px(3, 0))
         r2 = ctrl.on_click(*px(1, 0))
         assert r2 == RequestMoveResult.ACCEPTED
 
         snap = engine.get_snapshot()
         assert len(snap.active_motions) == 2
-        print_step("Both pieces in transit", renderer, engine)
 
-        engine.tick(2000)
-        print_step("After tick(2000) — both arrived", renderer, engine)
-
+        engine.tick(2000)   # 2 cells * 1000ms
         snap = engine.get_snapshot()
-        assert snap.grid[0][2] == "wR", "wR must be at (0,2)"
-        assert snap.grid[0][1] == "bR", "bR must be at (0,1)"
+        assert snap.grid[0][2] == "wR"
+        assert snap.grid[0][1] == "bR"
         assert len(snap.active_motions) == 0
 
 
@@ -251,12 +200,11 @@ class TestScenarioConcurrentMoves:
 
 class TestScenarioPawnMove:
     """
-    Board:  .  .  .
-            .  .  .
-            .  .  .
-            . wP  .    ← white pawn at start row (row 3 of 4-row board)
-    Pawn duration = 500 ms.
-    Move: wP (3,1) → (2,1)  one step forward.
+    Board:  . . .
+            . . .
+            . . .
+            . wP .
+    Pawn: 1 cell * 500ms = 500ms
     """
 
     def test_pawn_arrives_after_500ms(self):
@@ -267,19 +215,14 @@ class TestScenarioPawnMove:
             ". wP .",
         ])
 
-        print_step("INITIAL STATE", renderer, engine)
-
-        ctrl.on_click(*px(1, 3))          # select wP at col=1, row=3
-        result = ctrl.on_click(*px(1, 2)) # move to row=2
+        ctrl.on_click(*px(1, 3))
+        result = ctrl.on_click(*px(1, 2))
         assert result == RequestMoveResult.ACCEPTED
-        print_step("Pawn move requested", renderer, engine)
 
         engine.tick(250)
-        print_step("After tick(250) — pawn still in transit", renderer, engine)
         assert engine.get_snapshot().grid[2][1] == "."
 
-        engine.tick(250)
-        print_step("After tick(250) — pawn arrived", renderer, engine)
+        engine.tick(250)   # total 500ms = 1 cell * 500ms
         snap = engine.get_snapshot()
         assert snap.grid[3][1] == ".",   "src must be empty"
         assert snap.grid[2][1] == "wP",  "pawn must be at destination"

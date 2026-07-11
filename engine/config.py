@@ -25,12 +25,12 @@ BLACK_DIRECTION = 1   # שחור זז "למטה" (rows גדולות)
 
 # ========== Move Duration (milliseconds) ==========
 MOVE_DURATION_MS = {
-    KING: 1000,
-    QUEEN: 2000,
-    ROOK: 2000,
-    BISHOP: 2000,
-    KNIGHT: 3000,
-    PAWN: 500,
+    KING:   1000,
+    QUEEN:  1000,
+    ROOK:   1000,
+    BISHOP: 1000,
+    KNIGHT: 1500,
+    PAWN:   500,
 }
 
 # ========== Piece Score Values ==========

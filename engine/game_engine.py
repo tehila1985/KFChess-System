@@ -81,7 +81,9 @@ class GameEngine:
             return _STATUS_MAP[status]
 
         piece    = self._board.get_piece(src)
-        duration = MOVE_DURATION_MS.get(piece.type_code, 1000)
+        speed    = MOVE_DURATION_MS.get(piece.type_code, 1000)
+        distance = max(abs(dst.row - src.row), abs(dst.col - src.col))
+        duration = speed * distance
         self._arbiter.start_motion(piece, src, dst, duration)
         return RequestMoveResult.ACCEPTED
 

@@ -49,8 +49,8 @@ class TestRequestMove:
 
     def test_game_over_rejects_all_moves(self):
         eng = make_engine(["wR . bK"])
-        eng.request_move(pos(0, 0), pos(0, 2))          # rook targets king
-        eng.tick(2000)                                   # rook arrives, king captured
+        eng.request_move(pos(0, 0), pos(0, 2))
+        eng.tick(2000)                                   # 2 cells * 1000ms
         assert eng.request_move(pos(0, 2), pos(0, 0)) == RequestMoveResult.GAME_OVER
 
 
@@ -66,7 +66,7 @@ class TestTick:
     def test_piece_arrives_after_full_duration(self):
         eng = make_engine(["wR . . ."])
         eng.request_move(pos(0, 0), pos(0, 3))
-        eng.tick(2000)                                   # ROOK duration = 2000 ms
+        eng.tick(3000)                                   # 3 cells * 1000ms
         snap = eng.get_snapshot()
         assert snap.grid[0][3] == "wR"
 
@@ -81,8 +81,8 @@ class TestTick:
     def test_accumulated_ticks_complete_motion(self):
         eng = make_engine(["wR . . ."])
         eng.request_move(pos(0, 0), pos(0, 3))
-        eng.tick(1200)
-        eng.tick(800)
+        eng.tick(1500)
+        eng.tick(1500)
         snap = eng.get_snapshot()
         assert snap.grid[0][3] == "wR"
         assert len(snap.active_motions) == 0
@@ -94,9 +94,9 @@ class TestCapture:
     def test_score_updated_on_capture(self):
         eng = make_engine(["wR . bR"])
         eng.request_move(pos(0, 0), pos(0, 2))
-        eng.tick(2000)
+        eng.tick(2000)                                   # 2 cells * 1000ms
         snap = eng.get_snapshot()
-        assert snap.scores["w"] == 5          # rook = 5 pts
+        assert snap.scores["w"] == 5
 
     def test_no_score_change_on_empty_arrival(self):
         eng = make_engine(["wR . ."])
@@ -108,7 +108,7 @@ class TestCapture:
     def test_king_capture_ends_game(self):
         eng = make_engine(["wR . bK"])
         eng.request_move(pos(0, 0), pos(0, 2))
-        eng.tick(2000)
+        eng.tick(2000)                                   # 2 cells * 1000ms
         snap = eng.get_snapshot()
         assert snap.game_over is True
 
@@ -128,14 +128,12 @@ class TestCapture:
 
     def test_multiple_captures_accumulate_score(self):
         eng = make_engine(["wR . bR . bB"])
-        # capture bR
         eng.request_move(pos(0, 0), pos(0, 2))
-        eng.tick(2000)
-        # now wR is at (0,2); capture bB
+        eng.tick(2000)                                   # 2 cells
         eng.request_move(pos(0, 2), pos(0, 4))
-        eng.tick(2000)
+        eng.tick(2000)                                   # 2 cells
         snap = eng.get_snapshot()
-        assert snap.scores["w"] == 8          # rook(5) + bishop(3)
+        assert snap.scores["w"] == 8
 
 
 # ── get_snapshot ───────────────────────────────────────────────────────
@@ -173,7 +171,7 @@ class TestGetSnapshot:
     def test_snapshot_no_active_motions_after_completion(self):
         eng = make_engine(["wR . . ."])
         eng.request_move(pos(0, 0), pos(0, 3))
-        eng.tick(2000)
+        eng.tick(3000)                                   # 3 cells * 1000ms
         assert eng.get_snapshot().active_motions == ()
 
     def test_initial_snapshot_not_game_over(self):
@@ -197,6 +195,5 @@ class TestDependencyInjection:
         arbiter = RealTimeArbiter(board)
         engine  = GameEngine(board, RuleEngine(), arbiter)
         engine.request_move(pos(0, 0), pos(0, 2))
-        engine.tick(2000)
-        # the same board object the caller holds is updated
+        engine.tick(2000)                                # 2 cells * 1000ms
         assert board.get_piece(pos(0, 2)) == Piece("w", "R")
