@@ -9,7 +9,7 @@ from engine.models.piece import Piece
 from engine.models.position import Position
 from engine.rules.rule_engine import MoveStatus, RuleEngine
 from engine.arbiter.real_time_arbiter import RealTimeArbiter
-from engine.config import WHITE, BLACK, KING, QUEEN, PAWN, PIECE_SCORE, MOVE_DURATION_MS, PIXEL_TO_GRID_DIVISOR
+from engine.config import WHITE, BLACK, KING, QUEEN, PAWN, PIECE_SCORE, MOVE_DURATION_MS
 
 
 class RequestMoveResult(Enum):
@@ -122,18 +122,15 @@ class GameEngine:
         self._arbiter.start_motion(piece, src, dst, duration)
         return RequestMoveResult.ACCEPTED
 
-    def request_jump(self, x: int, y: int) -> None:
+    def request_jump(self, pos: Position) -> None:
         """
-        מבצע קפיצה לכלי במשבצת שמתאימה לקואורדינטות הפיקסל.
+        מבצע קפיצה לכלי במשבצת pos.
 
         קפיצה אפשרית רק אם הכלי לא בתנועה כרגע.
         הכלי נשאר במשבצתו אבל מסומן כ-airborne — יכול ללכוד מגיעים.
         """
         if self._game_over:
             return
-        col = x // PIXEL_TO_GRID_DIVISOR
-        row = y // PIXEL_TO_GRID_DIVISOR
-        pos = Position(row, col)
         if not self._board.in_bounds(pos):
             return
         if self._board.get_piece(pos) is None:

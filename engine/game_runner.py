@@ -97,8 +97,10 @@ class GameRunner:
                 controller.on_click(int(parts[1]), int(parts[2]))
 
             elif parts[0] == "jump" and len(parts) == 3:
-                # jump x y — קפיצה ישירה דרך GameEngine (עוקף Controller)
-                engine.request_jump(int(parts[1]), int(parts[2]))
+                # jump x y — המרת פיקסל ל-Position דרך BoardMapper, אחר כך קפיצה
+                pos = mapper.to_position(int(parts[1]), int(parts[2]))
+                if pos is not None:
+                    engine.request_jump(pos)
 
             elif parts[0] == "wait" and len(parts) == 2:
                 # wait ms — מקדם את שעון הסימולציה
