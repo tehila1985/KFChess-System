@@ -9,19 +9,21 @@ from engine.models.piece import Piece
 from engine.models.position import Position
 from engine.rules.rule_engine import MoveStatus, RuleEngine
 from engine.arbiter.real_time_arbiter import RealTimeArbiter
-from engine.config import WHITE, BLACK, KING, QUEEN, PAWN,PIECE_SCORE, MOVE_DURATION_MS, PIXEL_TO_GRID_DIVISOR
+from engine.config import WHITE, BLACK, KING, QUEEN, PAWN, PIECE_SCORE, MOVE_DURATION_MS, PIXEL_TO_GRID_DIVISOR
 
 
 class RequestMoveResult(Enum):
-    ACCEPTED             = auto()
-    GAME_OVER            = auto()
-    PIECE_BUSY           = auto()
+    """תוצאת בקשת תנועה — מוחזרת ל-Controller אחרי request_move."""
+    ACCEPTED             = auto()  # התנועה התקבלה ונמצאת בדרך
+    GAME_OVER            = auto()  # המשחק הסתיים, לא מקבלים תנועות
+    PIECE_BUSY           = auto()  # הכלי כבר בתנועה
     OUTSIDE_BOARD        = auto()
     EMPTY_SOURCE         = auto()
     FRIENDLY_DESTINATION = auto()
     ILLEGAL_PIECE_MOVE   = auto()
 
 
+# מיפוי מ-MoveStatus (שכבת rules) ל-RequestMoveResult (שכבת engine)
 _STATUS_MAP: dict[MoveStatus, RequestMoveResult] = {
     MoveStatus.OK:                   RequestMoveResult.ACCEPTED,
     MoveStatus.OUTSIDE_BOARD:        RequestMoveResult.OUTSIDE_BOARD,
@@ -33,6 +35,7 @@ _STATUS_MAP: dict[MoveStatus, RequestMoveResult] = {
 
 @dataclass(frozen=True)
 class MotionSummary:
+    """סיכום תנועה פעילה — חלק מה-GameSnapshot לצורך UI."""
     piece:      Piece
     src:        Position
     dst:        Position
@@ -42,14 +45,33 @@ class MotionSummary:
 
 @dataclass(frozen=True)
 class GameSnapshot:
-    grid:           tuple
+    """
+    תמונת מצב של המשחק בנקודת זמן נתונה.
+
+    נוצר על ידי get_snapshot() ומועבר ל-TextRenderer.
+    frozen — לא ניתן לשינוי, בטוח להעביר לשכבת UI.
+    """
+    grid:           tuple   # הגריד הנוכחי (כולל כלים בתנועה ב-src שלהם)
     scores:         dict
     game_over:      bool
     winner:         Optional[str]
-    active_motions: tuple
+    active_motions: tuple   # MotionSummary של כל התנועות הפעילות
 
 
 class GameEngine:
+    """
+    מנוע המשחק — מתאם בין כל השכבות.
+
+    אחריות:
+    - קבלת בקשות תנועה מה-Controller ואימותן דרך RuleEngine
+    - העברת תנועות מאושרות ל-RealTimeArbiter
+    - קידום הזמן (tick) וטיפול בתוצאות (לכידה, קידום חייל)
+    - ניהול ניקוד ומצב game_over
+    - יצירת GameSnapshot לצורך הצגה
+
+    לא מכיר UI, לא מכיר פיקסלים.
+    """
+
     def __init__(self, board: Board, rule_engine: RuleEngine, arbiter: RealTimeArbiter):
         self._board     = board
         self._rules     = rule_engine
@@ -59,17 +81,30 @@ class GameEngine:
         self._winner: Optional[str] = None
 
     def get_piece_at(self, pos: Position) -> Optional[Piece]:
-        # בדוק גם בלוח וגם בתנועות פעילות
+        """
+        מחזיר את הכלי במשבצת — בין אם הוא על הלוח ובין אם בתנועה.
+
+        כלי בתנועה נמחק מהגריד ב-start_motion, אז בודקים גם ב-active_motions.
+        """
         piece = self._board.get_piece(pos)
         if piece is not None:
             return piece
-        # כלי שנמצא בתנועה - src שלו נמחק מהלוח, חפש לפי dst
         for m in self._arbiter.active_motions:
             if m.src == pos:
                 return m.piece
         return None
 
     def request_move(self, src: Position, dst: Position) -> RequestMoveResult:
+        """
+        מנסה להתחיל תנועה מ-src ל-dst.
+
+        סדר הבדיקות:
+        1. game_over — לא מקבלים תנועות
+        2. הכלי עסוק (כבר בתנועה)
+        3. אימות חוקיות דרך RuleEngine
+        4. חישוב משך התנועה לפי סוג הכלי ומרחק
+        5. העברה ל-Arbiter
+        """
         if self._game_over:
             return RequestMoveResult.GAME_OVER
 
@@ -88,6 +123,12 @@ class GameEngine:
         return RequestMoveResult.ACCEPTED
 
     def request_jump(self, x: int, y: int) -> None:
+        """
+        מבצע קפיצה לכלי במשבצת שמתאימה לקואורדינטות הפיקסל.
+
+        קפיצה אפשרית רק אם הכלי לא בתנועה כרגע.
+        הכלי נשאר במשבצתו אבל מסומן כ-airborne — יכול ללכוד מגיעים.
+        """
         if self._game_over:
             return
         col = x // PIXEL_TO_GRID_DIVISOR
@@ -102,11 +143,18 @@ class GameEngine:
         self._arbiter.start_jump(pos)
 
     def tick(self, delta_ms: int) -> None:
+        """
+        מקדם את הזמן ב-delta_ms ומטפל בתנועות שהסתיימו.
+
+        לכל תנועה שהסתיימה:
+        - אם חייל הגיע לקצה — מקדמים אותו למלכה
+        - אם הייתה לכידה — מפעילים _apply_capture
+        """
         completed = self._arbiter.advance_time(delta_ms)
         for motion in completed:
-            # promotion: חייל שהגיע לקצה הלוח
-            dst = motion.dst
+            dst   = motion.dst
             piece = self._board.get_piece(dst)
+            # קידום חייל: הגיע לשורה הראשונה (לבן) או האחרונה (שחור)
             if piece is not None and piece.type_code == PAWN:
                 promotion_row = 0 if piece.color == WHITE else self._board.rows - 1
                 if dst.row == promotion_row:
@@ -115,7 +163,12 @@ class GameEngine:
                 self._apply_capture(motion.captured)
 
     def get_snapshot(self) -> GameSnapshot:
-        # בנה grid עם כלים בתנועה מוצגים ב-src שלהם
+        """
+        מחזיר תמונת מצב נוכחית של המשחק.
+
+        כלים בתנועה מוצגים ב-src שלהם בגריד (כדי שה-UI יראה אותם).
+        קפיצות (is_jump) לא מוצגות ב-src כי הכלי כבר מוצג על הלוח.
+        """
         grid = [list(row) for row in self._board._grid]
         for m in self._arbiter.active_motions:
             if not m.is_jump and grid[m.src.row][m.src.col] == ".":
@@ -134,10 +187,15 @@ class GameEngine:
         )
 
     def _is_piece_busy(self, src: Position) -> bool:
-        # כלי עסוק אם יש תנועה פעילה שיצאה מ-src, או קפיצה שנמצאת ב-src
+        """כלי עסוק אם יש תנועה פעילה (כולל קפיצה) שיצאה מ-src."""
         return any(m.src == src for m in self._arbiter.active_motions)
 
     def _apply_capture(self, captured: Piece) -> None:
+        """
+        מטפל בלכידת כלי:
+        - לכידת מלך → game_over, הניקוד של הצד הלוכד = אינסוף
+        - לכידת כלי אחר → מוסיף ניקוד לצד הלוכד
+        """
         scorer = BLACK if captured.color == WHITE else WHITE
         if captured.type_code == KING:
             self._game_over = True

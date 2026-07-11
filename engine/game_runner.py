@@ -13,6 +13,16 @@ _VALID_TYPES  = {'K', 'Q', 'R', 'B', 'N', 'P'}
 
 
 def _validate_board(board_lines):
+    """
+    בודק את תקינות הלוח לפני יצירת המשחק.
+
+    בדיקות:
+    - לוח לא ריק
+    - כל השורות באותו רוחב (ROW_WIDTH_MISMATCH)
+    - כל token הוא '.' או צבע+סוג חוקיים (UNKNOWN_TOKEN)
+
+    מחזיר מחרוזת שגיאה או None אם הכל תקין.
+    """
     if not board_lines:
         return "ERROR NO_BOARD"
     width = len(board_lines[0].split())
@@ -29,6 +39,19 @@ def _validate_board(board_lines):
 
 
 class GameRunner:
+    """
+    Entry point לוגי — מחבר בין הקלט הטקסטואלי לבין מנוע המשחק.
+
+    תפקיד:
+    1. פרסור הקלט לחלקי Board ו-Commands
+    2. אימות הלוח
+    3. בניית כל השכבות (Board → RuleEngine → Arbiter → GameEngine → Controller)
+    4. הרצת הפקודות בסדר
+
+    הסיבה שזה נפרד מ-GameEngine: Runner מכיר פורמט קלט/פלט,
+    GameEngine לא יודע כלום על טקסט או stdin.
+    """
+
     def __init__(self):
         self.renderer = TextRenderer()
 
@@ -36,8 +59,9 @@ class GameRunner:
         lines = input_stream.readlines()
         i = 0
         board_lines = []
-        commands = []
+        commands    = []
 
+        # פרסור: מחלק את הקלט לחלק הלוח ולחלק הפקודות
         while i < len(lines):
             line = lines[i].strip()
             i += 1
@@ -54,31 +78,33 @@ class GameRunner:
             print(error)
             return
 
-        board = Board(board_lines)
-        arbiter = RealTimeArbiter(board)
+        # בניית שכבות — סדר חשוב: Board קודם, אחר כך כל מה שתלוי בו
+        board      = Board(board_lines)
+        arbiter    = RealTimeArbiter(board)
         rule_engine = RuleEngine()
-        engine = GameEngine(board=board, rule_engine=rule_engine, arbiter=arbiter)
-        mapper = BoardMapper(
-            cell_size=PIXEL_TO_GRID_DIVISOR,
-            rows=board.rows,
-            cols=board.cols
-        )
+        engine     = GameEngine(board=board, rule_engine=rule_engine, arbiter=arbiter)
+        mapper     = BoardMapper(cell_size=PIXEL_TO_GRID_DIVISOR, rows=board.rows, cols=board.cols)
         controller = Controller(engine, mapper)
 
+        # הרצת פקודות בסדר
         for line in commands:
             parts = line.split()
             if not parts:
                 continue
 
             if parts[0] == "click" and len(parts) == 3:
+                # click x y — בחירה/הזזה דרך Controller
                 controller.on_click(int(parts[1]), int(parts[2]))
 
             elif parts[0] == "jump" and len(parts) == 3:
+                # jump x y — קפיצה ישירה דרך GameEngine (עוקף Controller)
                 engine.request_jump(int(parts[1]), int(parts[2]))
 
             elif parts[0] == "wait" and len(parts) == 2:
+                # wait ms — מקדם את שעון הסימולציה
                 engine.tick(int(parts[1]))
 
             elif parts[0] == "print":
+                # print board — מדפיס את מצב הלוח הנוכחי
                 snapshot = engine.get_snapshot()
                 print(self.renderer.render_board_only(snapshot))

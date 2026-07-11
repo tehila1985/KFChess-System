@@ -1,269 +1,230 @@
-# 🏗️ ארכיטקטורת King-Fu-Chess
+# ארכיטקטורת KFChess
 
-## 📌 תיאור כללי
+## תיאור כללי
 
-**King-Fu-Chess** הוא משחק שחמט בזמן אמת שבו שני שחקנים זזים במקביל ללא תורות. כל כלי נע בפיזיקה אמיתית עם זמן תנועה, וניצחון קיים רק בלכידת המלך.
+KFChess הוא שחמט בזמן אמת — שני שחקנים זזים במקביל ללא תורות.
+כל כלי נע בפיזיקה אמיתית עם זמן תנועה, וניצחון קיים רק בלכידת המלך.
 
 ---
 
-## 🏛️ מבנה הפרויקט
+## מבנה הפרויקט
 
 ```
 chess/
-├── main.py                    # Entry point - טוען את runner
+├── main.py                              # Entry point — מעביר stdin ל-GameRunner
 ├── engine/
-│   ├── __init__.py
-│   ├── board.py              # ניהול לוח (grid operations)
-│   ├── pieces.py             # כללי תנועה, סוגי כלים, registry
-│   ├── game_logic.py         # ⚡ מנוע המשחק (התנגשויות, תנועות)
-│   ├── validator.py          # validation של לוח בתחילה
-│   └── runner.py             # parsing קלט וקריאה ל-engine
-├── utils/
-│   └── parser.py             # parse input format
-├── tests/                    # בדיקות יחידה
-└── .github/
-    ├── kong_fu_chess_requirements.md
-    ├── ARCHITECTURE.md       # קובץ זה
-    └── GAME_LOGIC_FUNCTIONS.md
+│   ├── config.py                        # כל ה-constants במקום אחד
+│   ├── game_runner.py                   # פרסור קלט + בניית שכבות + הרצת פקודות
+│   ├── game_engine.py                   # מתאם מרכזי בין כל השכבות
+│   ├── models/
+│   │   ├── position.py                  # (row, col) — כתובת תא
+│   │   ├── piece.py                     # (color, type_code) — זהות כלי
+│   │   ├── move.py                      # (src, dst) — בקשת תנועה
+│   │   └── board.py                     # גריד + חסימת נתיב
+│   ├── rules/
+│   │   └── rule_engine.py               # אימות חוקיות תנועה (stateless)
+│   └── arbiter/
+│       └── real_time_arbiter.py         # ניהול תנועות בו-זמניות + התנגשויות
+├── ui/
+│   ├── board_mapper.py                  # פיקסל → משבצת
+│   ├── controller.py                    # לוגיקת שני-קליקים
+│   └── text_renderer.py                 # GameSnapshot → טקסט
+└── tests/
+    ├── test_runner_scenarios.py         # E2E — מריץ GameRunner עם קלט טקסטואלי
+    ├── test_game_engine.py
+    ├── test_arbiter.py
+    ├── test_rule_engine.py
+    ├── test_models.py
+    ├── test_ui.py
+    └── test_integration_scenario.py
 ```
 
 ---
 
-## 🔧 קומות הארכיטקטורה
+## שכבות הארכיטקטורה
 
-### 1️⃣ **Board Layer** (`engine/board.py`)
-**אחראי:** ניהול הלוח הפיזי
+### 1. Models — נתונים טהורים (`engine/models/`)
 
-| פונקציה | מטרה |
-|---------|------|
-| `in_bounds()` | בדיקה אם משבצת בתוך גבולות הלוח |
-| `get()`, `set()` | קריאה וכתיבה לתא |
-| `is_empty()` | בדיקה אם תא ריק |
-| `is_path_blocked()` | בדיקה אם כלים חוסמים נתיב (למעט Jumpers) |
-| `move_piece()` | תנועה של כלי (עם חזרה מה שנלכד) |
-| `display()` | הדפסה של הלוח |
+אובייקטים ללא לוגיקה, ללא state, frozen.
 
-**חוקים:**
-- Knight דוקפץ (לא נחסם)
-- כלים אחרים חסומים על ידי כלים בנתיב
+| קובץ | תפקיד |
+|------|--------|
+| `position.py` | כתובת תא (row, col) |
+| `piece.py` | זהות כלי (color + type_code). `from_token('wK')` ← → `token` |
+| `move.py` | בקשת תנועה (src → dst) |
+| `board.py` | גריד של tokens. קריאה/כתיבה, גבולות, חסימת נתיב |
+
+**למה נפרד:** שכבות עליונות יכולות לעבוד עם נתונים בלי לדעת כלום על UI או תזמון.
 
 ---
 
-### 2️⃣ **Pieces Layer** (`engine/pieces.py`)
-**אחראי:** הגדרת סוגי כלים וכללי התנועה שלהם
+### 2. Config (`engine/config.py`)
 
-#### **Strategy Pattern - MovementRule**
-כל סוג כלי יש rule נפרד:
+כל ה-constants במקום אחד: צבעים, קודי כלים, מהירויות, ניקוד, גדלי UI.
 
-```python
+**למה נפרד:** שינוי מהירות כלי = שינוי שורה אחת, בלי לגעת בלוגיקה.
+
+---
+
+### 3. RuleEngine — אימות חוקיות (`engine/rules/rule_engine.py`)
+
+Stateless validator. מקבל `(board, move)` ומחזיר `MoveStatus`.
+
+#### Strategy Pattern — MovementRule
+
+כל סוג כלי מממש `MovementRule` בנפרד:
+
+```
 MovementRule (abstract)
-├── KingRule        # 1 משבצת בכל כיוון
-├── RookRule        # קו ישר
-├── BishopRule      # אלכסון
-├── QueenRule       # Rook + Bishop
-├── KnightRule      # L-shape (עם is_jumper=True)
-└── PawnRule        # קדימה/לכידה אלכסונית
+├── KingRule    — צעד אחד בכל כיוון
+├── RookRule    — קו ישר
+├── BishopRule  — אלכסון
+├── QueenRule   — Rook + Bishop
+├── KnightRule  — L-shape, is_jumper=True (לא נחסם)
+└── PawnRule    — קדימה/לכידה אלכסונית/כפול מהתחלה
 ```
 
-#### **Registry Pattern - PieceRegistry**
-מרשם מרכזי של כל הכלים ועל הקונפיגורציה:
+סדר הבדיקות ב-`validate_move`:
+1. גבולות לוח
+2. קיום כלי במקור
+3. יעד לא תפוס על ידי ידידותי
+4. חוקיות גיאומטרית לפי סוג הכלי
+5. חסימת נתיב (פרש פטור)
+
+**למה נפרד:** הוספת כלי חדש = class אחד + שורה ב-`_RULES`. RuleEngine לא משתנה.
+
+---
+
+### 4. RealTimeArbiter — תנועות בו-זמניות (`engine/arbiter/real_time_arbiter.py`)
+
+מנהל רשימת `ActiveMotion` ומפתור התנגשויות.
+
+#### ActiveMotion
+
+```
+piece, src, dst, start_time, duration, is_jump
+end_time = start_time + duration
+```
+
+- תנועה רגילה: הכלי נמחק מ-src ב-`start_motion`, מונח ב-dst ב-`_resolve`
+- קפיצה (`is_jump=True`): הכלי נשאר על הלוח, יכול ללכוד מגיעים
+
+#### `_resolve` — סדר פתרון
+
+```
+1. head-to-head: שני כלים שהחליפו מקומות — מי התחיל מאוחר מפסיד
+2. קפיצות: כלי קופץ לוכד כלי אויב שמגיע לאותה משבצת
+3. תנועות רגילות: הנח ביעד, לכוד מה שיש שם
+```
+
+#### `_route_conflicts`
+
+חוסם תנועה אם כלי אחר כבר נע לאותה עמודה יעד מאותו כיוון.
+מונע שני כלים על אותו נתיב בו-זמנית.
+
+**למה נפרד מ-RuleEngine:** RuleEngine בודק חוקיות שחמט, Arbiter בודק פיזיקת זמן אמת.
+
+---
+
+### 5. GameEngine — מתאם מרכזי (`engine/game_engine.py`)
+
+מחבר בין כל השכבות. לא מכיר UI, לא מכיר פיקסלים.
+
+| מתודה | תפקיד |
+|-------|--------|
+| `request_move(src, dst)` | אימות + העברה ל-Arbiter |
+| `request_jump(x, y)` | המרת פיקסל → משבצת + קפיצה |
+| `tick(delta_ms)` | קידום זמן + טיפול בלכידות + קידום חיילים |
+| `get_snapshot()` | תמונת מצב לצורך UI |
+| `get_piece_at(pos)` | מחזיר כלי גם אם הוא בתנועה |
+
+#### GameSnapshot
 
 ```python
-PieceRegistry
-├── _registry       # מילון {code: PieceType}
-├── MOVE_DURATION_MS # זמנים (K:1000, N:3000, P:500, etc.)
-├── PIECE_SCORE     # ערכים (P:1, N:3, Q:9, K:∞)
-├── JUMP_DURATION_MS # זמן קפיצה (1000ms)
-├── register()      # הוסף כלי חדש
-└── get()           # קבל כלי לפי קוד
-```
-
-**יתרון:** קל להוסיף כלי חדש (Drone) ללא שינוי בקוד הקיים.
-
----
-
-### 3️⃣ **Game Logic Layer** (`engine/game_logic.py`) ⚡
-**אחראי:** סימולציה, תנועות, התנגשויות, ניקוד
-
-#### **Classes**
-
-**Action** - מייצגת פעולה יחידה:
-- `start`, `end` - משבצות
-- `start_time`, `duration` - תזמון
-- `end_time` - מחושב (start_time + duration)
-- `is_jump` - האם זו קפיצה (start == end)
-
-**GameEngine** - מנוע המשחק:
-- `action_queue[]` - תור של פעולות פעילות
-- `current_time` - זמן הסימולציה
-- `selected` - הכלי שנבחר להזזה
-- `scores{'w':, 'b':}` - ניקוד
-
-#### **Flow לוגי**
-
-```
-runner: click(x, y) / jump(x, y) / wait(ms)
-                ↓
-        GameEngine methods
-                ↓
-        _flush_actions() ← הליבה!
-                ↓
-    1. התנגשויות head-to-head
-    2. קפיצות תופסות מגיעים
-    3. תנועות רגילות
-    4. קידום חיילים
-                ↓
-        עדכון לוח וניקוד
-```
-
-**זהו ה-"גלב" של המנוע** - כאן מתרחש כל המשחק!
-
----
-
-### 4️⃣ **Input/Output Layer**
-
-#### **Parser** (`utils/parser.py`)
-```
-קלט format:
-Board:
-wR . bR
-. . .
-
-Commands:
-click 50 50
-wait 1000
-click 150 50
-```
-
-#### **Runner** (`engine/runner.py`)
-```python
-1. Parse input
-2. Validate board
-3. Create Board & GameEngine
-4. Execute commands in order
-5. Output state as needed
+grid           # גריד עם כלים בתנועה מוצגים ב-src שלהם
+scores         # {w: int, b: int}
+game_over      # bool
+winner         # 'w' / 'b' / None
+active_motions # tuple של MotionSummary
 ```
 
 ---
 
-## ⚙️ **Config Centralization**
+### 6. UI Layer (`ui/`)
 
-כל ה-Configuration מרוכז ב-**PieceRegistry**:
+שכבה דקה — לא מכירה כללי שחמט.
 
-```python
-# pieces.py
-MOVE_DURATION_MS = {
-    'K': 1000,   # מלך איטי (חשוב להגנה)
-    'Q': 2000,   # מלכה איטית
-    'R': 2000,   # צריח איטי
-    'B': 2000,   # רץ איטי
-    'N': 3000,   # פרש איטי ביותר (כי קופץ)
-    'P': 500,    # חייל מהיר
-}
+| קובץ | תפקיד |
+|------|--------|
+| `board_mapper.py` | `(x, y)` פיקסל → `Position`. מחזיר None אם מחוץ ללוח |
+| `controller.py` | שני-קליקים: קליק ראשון=בחירה, שני=תנועה. מחליף בחירה לכלי ידידותי |
+| `text_renderer.py` | `GameSnapshot` → מחרוזת טקסט |
 
-PIECE_SCORE = {
-    'K': ∞,      # מלך = משחק מוגמר
-    'Q': 9,
-    'R': 5,
-    'B': 3,
-    'N': 3,
-    'P': 1,
-}
-
-JUMP_DURATION_MS = 1000  # קפיצה קצרה יותר מתנועה
-```
-
-**יתרון:** עדכון ערכים פשוט וקל לעתיד (כקובץ config או database).
+**למה נפרד:** אפשר להחליף ב-GUI renderer בלי לגעת ב-GameEngine.
 
 ---
 
-## 🔄 **Data Flow - דוגמה**
+### 7. GameRunner (`engine/game_runner.py`)
+
+Entry point לוגי — מחבר קלט טקסטואלי למנוע.
 
 ```
-1. runner: click(50, 50) → בחירת wN
-   └─ GameEngine.selected = (0, 0)
+1. פרסור קלט → board_lines + commands
+2. _validate_board → ERROR או None
+3. בניית שכבות: Board → RuleEngine → Arbiter → GameEngine → Controller
+4. הרצת פקודות: click / jump / wait / print
+```
 
-2. runner: click(150, 250) → הזזה
-   └─ GameEngine.click() בודק:
-      ├─ _piece_type() → Knight
-      ├─ is_legal_move() → חוקי
-      ├─ is_path_blocked() → False (Knight קופץ)
-      ├─ _is_moving() → False
-      ├─ _is_destination_taken() → False
-      └─ יצור Action(start=(0,0), end=(2,1), start_time=0, duration=3000)
+**למה נפרד מ-GameEngine:** Runner מכיר פורמט קלט/פלט, GameEngine לא.
 
-3. runner: wait(2000)
-   └─ current_time = 2000
-   └─ _flush_actions() → בודקות את כל Actions עם end_time <= 2000
-   └─ לא בזמן עדיין (end_time = 3000)
+---
 
-4. runner: wait(1000)
-   └─ current_time = 3000
-   └─ _flush_actions() → end_time = 3000 <= 3000 ✓
-   └─ בצע את התנועה → board.move_piece((0,0), (2,1))
-   └─ הכלי הגיע!
+## Data Flow — דוגמה מלאה
+
+```
+קלט: "click 50 50" + "click 150 150" + "wait 1000" + "print board"
+
+1. GameRunner.run()
+   └─ controller.on_click(50, 50)
+      └─ BoardMapper.to_position(50, 50) → Position(0, 0)
+      └─ Controller._src = Position(0, 0)  [בחירה]
+
+2. controller.on_click(150, 150)
+   └─ BoardMapper.to_position(150, 150) → Position(1, 1)
+   └─ engine.request_move(Position(0,0), Position(1,1))
+      └─ RuleEngine.validate_move() → MoveStatus.OK
+      └─ Arbiter.start_motion(piece, src, dst, duration=1000)
+         └─ board.set_piece(src, None)  [כלי נמחק מ-src]
+
+3. engine.tick(1000)
+   └─ Arbiter.advance_time(1000)
+      └─ _resolve() → CompletedMotion
+         └─ board.set_piece(dst, piece)  [כלי מונח ב-dst]
+
+4. engine.get_snapshot() → GameSnapshot
+   └─ TextRenderer.render_board_only() → הדפסה
 ```
 
 ---
 
-## 🎯 **Scalability Design**
-
-### **עכשיו (CLI)**
-- Single GameEngine per game
-- In-memory board
-
-### **העתיד (Server)**
-- Multiple GameEngines (one per game)
-- PieceRegistry centralized (config server)
-- Networking layer (distribute actions)
-- Database for persistence
-
-**הנקודה:** ה-engine כעת **עצמאי מהרשת** - קל להכניס אותו לשרת.
-
----
-
-## 🧪 **Testing Strategy**
-
-כל שכבה בדוקה:
-- **board.py** - בדיקות חסימה, תנועה
-- **pieces.py** - כללי כל סוג כלי
-- **game_logic.py** - תנועות, התנגשויות, קופיצות
-- **validator.py** - validation לוח
-- **parser.py** - parsing input
-
----
-
-## 📊 **Key Design Patterns**
+## Design Patterns
 
 | Pattern | מקום | מטרה |
-|---------|------|------|
-| **Strategy** | pieces.py | MovementRule - כללים גמישים |
-| **Registry** | pieces.py | PieceRegistry - קונפיגורציה מרכזית |
-| **State Machine** | game_logic.py | Action queue עם state transitions |
-| **Snapshot** | game_logic.py | board grid snapshot לפתרון התנגשויות |
+|---------|------|-------|
+| Strategy | `rule_engine.py` | MovementRule — כל כלי כלל נפרד |
+| Snapshot | `game_engine.py` | GameSnapshot — UI קורא state בלי לשנות |
+| Layered Architecture | כל הפרויקט | כל שכבה מכירה רק את שמתחתיה |
 
 ---
 
-## 🚀 **Performance Notes**
+## הרצת טסטים
 
-- **Action Queue:** O(n) flush כאשר n = מספר פעולות בזמן נתון
-- **Path Blocking:** O(d) כאשר d = מרחק בנתיב
-- **Collision Detection:** O(n²) worst case (קטן מאד בפועל)
+```bash
+pytest tests/
+```
 
-**למיליוני players:** צריך שרת כך שכל game בנפרד, ו-matchmaking להתאמה.
-
----
-
-## 📝 **Code Quality Goals**
-
-✅ **Clean Code** - שכבות ברורות, אחריויות חלוקות  
-✅ **Extensible** - קל להוסיף כלים, אנימציות, כללים  
-✅ **Testable** - כל פונקציה בדוקה  
-✅ **Configurable** - קונפיגורציה מרכזית  
-✅ **Scalable** - עצמאות מfrontend/network  
+כל שכבה בדוקה בנפרד. `test_runner_scenarios.py` הוא E2E — מריץ GameRunner עם קלט טקסטואלי ובודק פלט.
 
 ---
 
-**Version:** 1.0  
-**Last Updated:** 2026-07-09  
-**Owner:** Team
+**Version:** 2.0 — משקף את המבנה האמיתי של הקוד

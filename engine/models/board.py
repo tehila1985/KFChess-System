@@ -7,43 +7,50 @@ EMPTY = "."
 
 class Board:
     """
-    Pure data model of the chess board.
-    No pixels, no timing, no UI concerns.
-    Grid cells hold piece tokens (e.g. 'wK', 'bP') or EMPTY ('.').
+    מודל נתונים טהור של הלוח — ללא פיקסלים, ללא תזמון, ללא UI.
+
+    הגריד מאחסן token strings ('wK', 'bP', '.').
+    כל הלוגיקה של מה מותר לזוז נמצאת ב-RuleEngine, לא כאן.
+    Board אחראי רק על: קריאה/כתיבה לתאים, גבולות, וחסימת נתיב.
     """
 
     def __init__(self, board_lines):
+        # כל שורת טקסט מפוצלת לרשימת tokens
         self._grid = [line.split() for line in board_lines]
-        self.rows = len(self._grid)
-        self.cols = len(self._grid[0]) if self._grid else 0
+        self.rows  = len(self._grid)
+        self.cols  = len(self._grid[0]) if self._grid else 0
 
     def in_bounds(self, pos: Position) -> bool:
+        """בודק שהמשבצת בתוך גבולות הלוח."""
         return 0 <= pos.row < self.rows and 0 <= pos.col < self.cols
 
     def get_piece(self, pos: Position) -> Optional[Piece]:
-        """Returns the Piece at pos, or None if the cell is empty."""
+        """מחזיר את הכלי במשבצת, או None אם ריקה."""
         token = self._grid[pos.row][pos.col]
         return None if token == EMPTY else Piece.from_token(token)
 
     def set_piece(self, pos: Position, piece: Optional[Piece]) -> None:
-        """Places piece at pos, or clears the cell if piece is None."""
+        """מציב כלי במשבצת, או מרוקן אותה אם piece=None."""
         self._grid[pos.row][pos.col] = piece.token if piece is not None else EMPTY
 
     def is_empty(self, pos: Position) -> bool:
         return self._grid[pos.row][pos.col] == EMPTY
 
-    # ------------------------------------------------------------------
-    # Helpers used by the engine layer (kept for compatibility)
-    # ------------------------------------------------------------------
+    # ── Raw token access (לתאימות עם קוד ישן) ─────────────────────────
 
     def get_token(self, row: int, col: int) -> str:
-        """Raw token access — used by engine.board.Board-compatible callers."""
         return self._grid[row][col]
 
     def set_token(self, row: int, col: int, token: str) -> None:
         self._grid[row][col] = token
 
     def is_path_blocked(self, start: tuple, end: tuple, is_jumper: bool = False) -> bool:
+        """
+        בודק אם יש כלי חוסם בנתיב הישר בין start ל-end.
+
+        is_jumper=True (פרש) — תמיד מחזיר False כי פרש קופץ מעל הכל.
+        עובר תא-תא לאורך הנתיב ובודק שכל תא ריק (לא כולל היעד עצמו).
+        """
         if is_jumper:
             return False
         sr, sc = start
@@ -59,10 +66,10 @@ class Board:
         return False
 
     def move_piece_coords(self, start: tuple, end: tuple) -> str:
-        """Moves a piece by raw (row, col) coords; returns the captured token."""
+        """מזיז כלי לפי קואורדינטות גולמיות; מחזיר את ה-token שנלכד."""
         sr, sc = start
         tr, tc = end
-        captured = self._grid[tr][tc]
+        captured          = self._grid[tr][tc]
         self._grid[tr][tc] = self._grid[sr][sc]
         self._grid[sr][sc] = EMPTY
         return captured
