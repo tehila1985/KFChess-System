@@ -1,62 +1,77 @@
 """
-Game Configuration - מקום מרכזי לכל ה-constants
+config.py — all game constants in one place.
+
+Reason for a separate file: changing one value (e.g. piece speed) does not require
+touching any logic. Every layer imports from here and defines no constants of its own.
 """
+from dataclasses import dataclass, field
 
-# ========== Board Constants ==========
-EMPTY_CELL = "."
-BOARD_SECTION = "Board:"
-COMMANDS_SECTION = "Commands:"
+# ── Board ──────────────────────────────────────────────────────────────
+EMPTY_CELL       = "."        # empty cell representation in the grid
+BOARD_SECTION    = "Board:"   # header for the board section in input
+COMMANDS_SECTION = "Commands:" # header for the commands section in input
 
-# ========== Colors ==========
+# ── Colors ─────────────────────────────────────────────────────────────
 WHITE = 'w'
 BLACK = 'b'
 
-# ========== Piece Codes ==========
-KING = 'K'
-QUEEN = 'Q'
-ROOK = 'R'
+# ── Piece type codes ───────────────────────────────────────────────────
+KING   = 'K'
+QUEEN  = 'Q'
+ROOK   = 'R'
 BISHOP = 'B'
 KNIGHT = 'N'
-PAWN = 'P'
+PAWN   = 'P'
 
-# ========== Direction Constants ==========
-WHITE_DIRECTION = -1  # לבן זז "למעלה" (rows קטנות)
-BLACK_DIRECTION = 1   # שחור זז "למטה" (rows גדולות)
+# ── Pawn direction ─────────────────────────────────────────────────────
+# white moves toward smaller row indices (up), black toward larger (down)
+WHITE_DIRECTION = -1
+BLACK_DIRECTION =  1
 
-# ========== Move Duration (milliseconds) ==========
-MOVE_DURATION_MS = {
-    KING: 1000,
-    QUEEN: 2000,
-    ROOK: 1000,
-    BISHOP: 2000,
-    KNIGHT: 2000,
-    PAWN: 500,
-}
+# ── UI ─────────────────────────────────────────────────────────────────
+# click at pixel (x, y) maps to grid via: col = x // 100, row = y // 100
+PIXEL_TO_GRID_DIVISOR = 100
 
-# ========== Piece Score Values ==========
-PIECE_SCORE = {
-    KING: float('inf'),
-    QUEEN: 9,
-    ROOK: 5,
-    BISHOP: 3,
-    KNIGHT: 3,
-    PAWN: 1,
-}
-
-# ========== Action Durations ==========
-JUMP_DURATION_MS = 1000
-
-# ========== UI Constants ==========
-PIXEL_TO_GRID_DIVISOR = 100  # קליק בפיקסל (x, y) → grid[y//100, x//100]
-
-# ========== Command Names ==========
+# ── Command names ──────────────────────────────────────────────────────
 CLICK_COMMAND = "click"
-JUMP_COMMAND = "jump"
-WAIT_COMMAND = "wait"
+JUMP_COMMAND  = "jump"
+WAIT_COMMAND  = "wait"
 PRINT_COMMAND = "print"
 
-# ========== Command Argument Counts ==========
-CLICK_ARGS = 3      # click x y
-JUMP_ARGS = 3       # jump x y
-WAIT_ARGS = 2       # wait ms
-PRINT_ARGS = 1      # print
+# ── Expected argument counts per command ──────────────────────────────
+CLICK_ARGS = 3   # click x y
+JUMP_ARGS  = 3   # jump x y
+WAIT_ARGS  = 2   # wait ms
+PRINT_ARGS = 1   # print board
+
+
+@dataclass
+class GameConfig:
+    """
+    All values that affect game behaviour — injected into GameEngine.
+
+    This separation allows:
+    - tests with different values (e.g. high speed) without changing global constants
+    - future flexibility to pass different settings per game
+    """
+    move_duration_ms: dict = field(default_factory=lambda: {
+        KING:   1000,
+        QUEEN:  1000,
+        ROOK:   1000,
+        BISHOP: 1000,
+        KNIGHT: 1500,
+        PAWN:    500,
+    })
+    piece_score: dict = field(default_factory=lambda: {
+        KING:   float('inf'),
+        QUEEN:  9,
+        ROOK:   5,
+        BISHOP: 3,
+        KNIGHT: 3,
+        PAWN:   1,
+    })
+    jump_duration_ms: int = 1000
+
+
+# Default config — used in GameRunner and tests that don't specify an explicit config
+DEFAULT_CONFIG = GameConfig()

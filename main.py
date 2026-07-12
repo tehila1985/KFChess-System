@@ -1,4 +1,6 @@
-from engine.runner import run
+import sys
+from engine.game_runner import GameRunner
 
-if __name__ == "__main__":
-    run()
+if __name__ == '__main__':
+    runner = GameRunner()
+    runner.run(sys.stdin)
