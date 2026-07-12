@@ -1,41 +1,13 @@
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Optional
 
 from engine.models.board import Board
 from engine.models.piece import Piece
 from engine.models.position import Position
 from engine.config import GameConfig, DEFAULT_CONFIG
+from engine.arbiter.motion import ActiveMotion, CompletedMotion
+from engine.arbiter.collision_resolver import CollisionResolver
 
-
-@dataclass(frozen=True)
-class ActiveMotion:
-    """
-    An active motion that has not yet completed.
-
-    is_jump=True: the piece "flies" above the board and lands on the same square (src == dst).
-    During a jump the piece remains on the board (not removed from the grid).
-    In a regular motion the piece is removed from src at the moment of start_motion.
-    """
-    piece:      Piece
-    src:        Position
-    dst:        Position
-    start_time: int
-    duration:   int
-    is_jump:    bool = False
-
-    @property
-    def end_time(self) -> int:
-        return self.start_time + self.duration
-
-
-@dataclass(frozen=True)
-class CompletedMotion:
-    """Result of a completed motion — returned to GameEngine for capture/promotion handling."""
-    piece:    Piece
-    src:      Position
-    dst:      Position
-    captured: Optional[Piece]  # the captured piece, or None
+__all__ = ["ActiveMotion", "CompletedMotion", "RealTimeArbiter"]
 
 
 class RealTimeArbiter:
@@ -44,19 +16,20 @@ class RealTimeArbiter:
 
     Responsibilities:
     - Maintaining the ActiveMotion list
-    - Advancing time (advance_time) and resolving completed motions
-    - Detecting head-to-head collisions (whoever started first wins)
-    - Handling jumps (a jumping piece captures an arriving enemy)
+    - Advancing time (advance_time) and applying resolved results to the board
     - Blocking route conflicts (two pieces heading to the same column from the same direction)
 
+    Collision resolution (head-to-head, airborne) is delegated to CollisionResolver.
     Has no knowledge of chess rules — that is RuleEngine's responsibility.
     """
 
-    def __init__(self, board: Board, config: GameConfig = DEFAULT_CONFIG):
+    def __init__(self, board: Board, config: GameConfig = DEFAULT_CONFIG,
+                 resolver: CollisionResolver = None):
         self._board        = board
         self._config       = config
         self._current_time = 0
         self._motions: list[ActiveMotion] = []
+        self._resolver     = resolver or CollisionResolver()
 
     @property
     def current_time(self) -> int:
@@ -110,15 +83,7 @@ class RealTimeArbiter:
         return False
 
     def _resolve(self) -> list[CompletedMotion]:
-        """
-        Resolves all motions that have reached end_time <= current_time.
-
-        Resolution order:
-        1. Sort by start_time (whoever started first)
-        2. head-to-head: two pieces that swapped positions — the later one loses
-        3. jumps: a jumping piece captures an enemy arriving at the same square
-        4. regular motions: place the piece at destination, capture whatever is there
-        """
+        """Collects completed motions, delegates collision resolution, then applies results to the board."""
         done = sorted(
             [m for m in self._motions if m.end_time <= self._current_time],
             key=lambda m: (m.start_time, self._motions.index(m)),
@@ -129,30 +94,16 @@ class RealTimeArbiter:
         for m in done:
             self._motions.remove(m)
 
-        # Phase 1: head-to-head — whoever started later loses
-        loser_indices: set[int] = set()
-        for i, a in enumerate(done):
-            for j, b in enumerate(done):
-                if i >= j or a.is_jump or b.is_jump:
-                    continue
-                if a.dst == b.src and a.src == b.dst:
-                    if b.start_time < a.start_time:
-                        loser_indices.add(i)
-                    else:
-                        loser_indices.add(j)
+        loser_indices, captured_map = self._resolver.resolve(done)
 
         results: list[CompletedMotion] = []
 
-        # Phase 2: jumps — a jumping piece captures an enemy arriving at the same square
-        airborne = {i for i, m in enumerate(done) if m.is_jump}
+        # airborne results — captured piece comes from captured_map
         for i, motion in enumerate(done):
-            if i not in airborne:
+            if not motion.is_jump:
                 continue
-            for j, other in enumerate(done):
-                if j in loser_indices or other.is_jump or other.dst != motion.src:
-                    continue
-                # the arriving piece is captured by the jumper
-                loser_indices.add(j)
+            if i in captured_map:
+                other = captured_map[i]
                 results.append(CompletedMotion(
                     piece    = motion.piece,
                     src      = motion.src,
@@ -160,14 +111,12 @@ class RealTimeArbiter:
                     captured = other.piece,
                 ))
 
-        # Phase 3: regular motions — place at destination and capture whatever is there
+        # regular motions — place at destination and capture whatever is there
         for i, motion in enumerate(done):
             if i in loser_indices or motion.is_jump:
                 continue
-
             captured = self._board.get_piece(motion.dst)
             self._board.set_piece(motion.dst, motion.piece)
-
             results.append(CompletedMotion(
                 piece    = motion.piece,
                 src      = motion.src,
