@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from engine.models.position import Position
 
 
-# Move מייצגת בקשת תנועה: ממשבצת src למשבצת dst.
-# אובייקט נתונים טהור — נוצר ב-Controller ומועבר ל-RuleEngine לאימות.
+# Move represents a move request: from square src to square dst.
+# Pure data object — created in Controller and passed to RuleEngine for validation.
 @dataclass(frozen=True)
 class Move:
     src: Position

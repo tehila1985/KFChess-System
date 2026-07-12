@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 
 
-# Position מייצגת כתובת תא בלוח.
-# frozen=True — אי-אפשר לשנות אחרי יצירה, בטוח לשימוש כ-key ב-dict/set.
+# Position represents a cell address on the board.
+# frozen=True — immutable after creation, safe to use as a dict/set key.
 @dataclass(frozen=True)
 class Position:
-    row: int  # שורה (0 = שורה עליונה)
-    col: int  # עמודה (0 = עמודה שמאלית)
+    row: int  # row (0 = top row)
+    col: int  # column (0 = leftmost column)

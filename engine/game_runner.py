@@ -13,14 +13,14 @@ _VALID_TYPES  = {'K', 'Q', 'R', 'B', 'N', 'P'}
 
 def _validate_board(board_lines):
     """
-    בודק את תקינות הלוח לפני יצירת המשחק.
+    Validates the board before creating the game.
 
-    בדיקות:
-    - לוח לא ריק
-    - כל השורות באותו רוחב (ROW_WIDTH_MISMATCH)
-    - כל token הוא '.' או צבע+סוג חוקיים (UNKNOWN_TOKEN)
+    Checks:
+    - Board is not empty
+    - All rows have the same width (ROW_WIDTH_MISMATCH)
+    - Each token is '.' or a valid color+type combination (UNKNOWN_TOKEN)
 
-    מחזיר מחרוזת שגיאה או None אם הכל תקין.
+    Returns an error string or None if everything is valid.
     """
     if not board_lines:
         return "ERROR NO_BOARD"
@@ -39,16 +39,16 @@ def _validate_board(board_lines):
 
 class GameRunner:
     """
-    Entry point לוגי — מחבר בין הקלט הטקסטואלי לבין מנוע המשחק.
+    Logical entry point — connects textual input to the game engine.
 
-    תפקיד:
-    1. פרסור הקלט לחלקי Board ו-Commands
-    2. אימות הלוח
-    3. בניית כל השכבות (Board → RuleEngine → Arbiter → GameEngine → Controller)
-    4. הרצת הפקודות בסדר
+    Responsibilities:
+    1. Parse input into Board and Commands sections
+    2. Validate the board
+    3. Build all layers (Board → RuleEngine → Arbiter → GameEngine → Controller)
+    4. Execute commands in order
 
-    הסיבה שזה נפרד מ-GameEngine: Runner מכיר פורמט קלט/פלט,
-    GameEngine לא יודע כלום על טקסט או stdin.
+    Separated from GameEngine because Runner understands input/output format,
+    while GameEngine knows nothing about text or stdin.
     """
 
     def __init__(self):
@@ -60,7 +60,7 @@ class GameRunner:
         board_lines = []
         commands    = []
 
-        # פרסור: מחלק את הקלט לחלק הלוח ולחלק הפקודות
+        # Parsing: splits input into board section and commands section
         while i < len(lines):
             line = lines[i].strip()
             i += 1
@@ -77,7 +77,7 @@ class GameRunner:
             print(error)
             return
 
-        # בניית שכבות — סדר חשוב: Board קודם, אחר כך כל מה שתלוי בו
+        # Build layers — order matters: Board first, then everything that depends on it
         board       = Board(board_lines)
         config      = DEFAULT_CONFIG
         arbiter     = RealTimeArbiter(board, config)
@@ -86,27 +86,27 @@ class GameRunner:
         mapper     = BoardMapper(cell_size=PIXEL_TO_GRID_DIVISOR, rows=board.rows, cols=board.cols)
         controller = Controller(engine, mapper)
 
-        # הרצת פקודות בסדר
+        # Execute commands in order
         for line in commands:
             parts = line.split()
             if not parts:
                 continue
 
             if parts[0] == "click" and len(parts) == 3:
-                # click x y — בחירה/הזזה דרך Controller
+                # click x y — select/move via Controller
                 controller.on_click(int(parts[1]), int(parts[2]))
 
             elif parts[0] == "jump" and len(parts) == 3:
-                # jump x y — המרת פיקסל ל-Position דרך BoardMapper, אחר כך קפיצה
+                # jump x y — convert pixel to Position via BoardMapper, then jump
                 pos = mapper.to_position(int(parts[1]), int(parts[2]))
                 if pos is not None:
                     engine.request_jump(pos)
 
             elif parts[0] == "wait" and len(parts) == 2:
-                # wait ms — מקדם את שעון הסימולציה
+                # wait ms — advances the simulation clock
                 engine.tick(int(parts[1]))
 
             elif parts[0] == "print":
-                # print board — מדפיס את מצב הלוח הנוכחי
+                # print board — prints the current board state
                 snapshot = engine.get_snapshot()
                 print(self.renderer.render_board_only(snapshot))

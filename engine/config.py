@@ -1,15 +1,15 @@
 """
-config.py — כל ה-constants של המשחק במקום אחד.
+config.py — all game constants in one place.
 
-הסיבה לקובץ נפרד: שינוי ערך אחד (כמו מהירות כלי) לא מצריך
-לגעת בלוגיקה. כל שכבה מייבאת מכאן ולא מגדירה קבועים בעצמה.
+Reason for a separate file: changing one value (e.g. piece speed) does not require
+touching any logic. Every layer imports from here and defines no constants of its own.
 """
 from dataclasses import dataclass, field
 
 # ── Board ──────────────────────────────────────────────────────────────
-EMPTY_CELL       = "."        # ייצוג תא ריק בגריד
-BOARD_SECTION    = "Board:"   # כותרת חלק הלוח בקלט
-COMMANDS_SECTION = "Commands:" # כותרת חלק הפקודות בקלט
+EMPTY_CELL       = "."        # empty cell representation in the grid
+BOARD_SECTION    = "Board:"   # header for the board section in input
+COMMANDS_SECTION = "Commands:" # header for the commands section in input
 
 # ── Colors ─────────────────────────────────────────────────────────────
 WHITE = 'w'
@@ -24,12 +24,12 @@ KNIGHT = 'N'
 PAWN   = 'P'
 
 # ── Pawn direction ─────────────────────────────────────────────────────
-# לבן זז לשורות קטנות יותר (מעלה), שחור לשורות גדולות יותר (מטה)
+# white moves toward smaller row indices (up), black toward larger (down)
 WHITE_DIRECTION = -1
 BLACK_DIRECTION =  1
 
 # ── UI ─────────────────────────────────────────────────────────────────
-# קליק בפיקסל (x, y) ממופה לגריד לפי: col = x // 100, row = y // 100
+# click at pixel (x, y) maps to grid via: col = x // 100, row = y // 100
 PIXEL_TO_GRID_DIVISOR = 100
 
 # ── Command names ──────────────────────────────────────────────────────
@@ -48,11 +48,11 @@ PRINT_ARGS = 1   # print board
 @dataclass
 class GameConfig:
     """
-    כל הערכים שמשפיעים על התנהגות המשחק — מוזרקים ל-GameEngine.
+    All values that affect game behaviour — injected into GameEngine.
 
-    הפרדה זו מאפשרת:
-    - טסטים עם ערכים שונים (למשל מהירות גבוהה) בלי לשנות קבועים גלובליים
-    - גמישות עתידית להעביר הגדרות שונות per-game
+    This separation allows:
+    - tests with different values (e.g. high speed) without changing global constants
+    - future flexibility to pass different settings per game
     """
     move_duration_ms: dict = field(default_factory=lambda: {
         KING:   1000,
@@ -73,5 +73,5 @@ class GameConfig:
     jump_duration_ms: int = 1000
 
 
-# ברירת המחדל — בשימוש ב-GameRunner ובטסטים שלא מציינים config מפורש
+# Default config — used in GameRunner and tests that don't specify an explicit config
 DEFAULT_CONFIG = GameConfig()

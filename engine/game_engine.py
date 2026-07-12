@@ -13,17 +13,17 @@ from engine.config import WHITE, BLACK, KING, QUEEN, PAWN, GameConfig, DEFAULT_C
 
 
 class RequestMoveResult(Enum):
-    """תוצאת בקשת תנועה — מוחזרת ל-Controller אחרי request_move."""
-    ACCEPTED             = auto()  # התנועה התקבלה ונמצאת בדרך
-    GAME_OVER            = auto()  # המשחק הסתיים, לא מקבלים תנועות
-    PIECE_BUSY           = auto()  # הכלי כבר בתנועה
+    """Result of a move request — returned to Controller after request_move."""
+    ACCEPTED             = auto()  # motion accepted and on its way
+    GAME_OVER            = auto()  # game has ended, no moves accepted
+    PIECE_BUSY           = auto()  # piece is already in motion
     OUTSIDE_BOARD        = auto()
     EMPTY_SOURCE         = auto()
     FRIENDLY_DESTINATION = auto()
     ILLEGAL_PIECE_MOVE   = auto()
 
 
-# מיפוי מ-MoveStatus (שכבת rules) ל-RequestMoveResult (שכבת engine)
+# mapping from MoveStatus (rules layer) to RequestMoveResult (engine layer)
 _STATUS_MAP: dict[MoveStatus, RequestMoveResult] = {
     MoveStatus.OK:                   RequestMoveResult.ACCEPTED,
     MoveStatus.OUTSIDE_BOARD:        RequestMoveResult.OUTSIDE_BOARD,
@@ -35,7 +35,7 @@ _STATUS_MAP: dict[MoveStatus, RequestMoveResult] = {
 
 @dataclass(frozen=True)
 class MotionSummary:
-    """סיכום תנועה פעילה — חלק מה-GameSnapshot לצורך UI."""
+    """Summary of an active motion — part of GameSnapshot for UI use."""
     piece:      Piece
     src:        Position
     dst:        Position
@@ -46,30 +46,30 @@ class MotionSummary:
 @dataclass(frozen=True)
 class GameSnapshot:
     """
-    תמונת מצב של המשחק בנקודת זמן נתונה.
+    Snapshot of the game state at a given point in time.
 
-    נוצר על ידי get_snapshot() ומועבר ל-TextRenderer.
-    frozen — לא ניתן לשינוי, בטוח להעביר לשכבת UI.
+    Created by get_snapshot() and passed to TextRenderer.
+    frozen — immutable, safe to pass to the UI layer.
     """
-    grid:           tuple   # הגריד הנוכחי (כולל כלים בתנועה ב-src שלהם)
+    grid:           tuple   # current grid (including pieces in motion at their src)
     scores:         dict
     game_over:      bool
     winner:         Optional[str]
-    active_motions: tuple   # MotionSummary של כל התנועות הפעילות
+    active_motions: tuple   # MotionSummary of all active motions
 
 
 class GameEngine:
     """
-    מנוע המשחק — מתאם בין כל השכבות.
+    Game engine — coordinates all layers.
 
-    אחריות:
-    - קבלת בקשות תנועה מה-Controller ואימותן דרך RuleEngine
-    - העברת תנועות מאושרות ל-RealTimeArbiter
-    - קידום הזמן (tick) וטיפול בתוצאות (לכידה, קידום חייל)
-    - ניהול ניקוד ומצב game_over
-    - יצירת GameSnapshot לצורך הצגה
+    Responsibilities:
+    - Receiving move requests from Controller and validating them via RuleEngine
+    - Forwarding approved moves to RealTimeArbiter
+    - Advancing time (tick) and handling results (capture, pawn promotion)
+    - Managing scores and game_over state
+    - Producing GameSnapshot for display
 
-    לא מכיר UI, לא מכיר פיקסלים.
+    Has no knowledge of UI or pixels.
     """
 
     def __init__(self, board: Board, rule_engine: RuleEngine, arbiter: RealTimeArbiter,
@@ -77,16 +77,16 @@ class GameEngine:
         self._board     = board
         self._rules     = rule_engine
         self._arbiter   = arbiter
-        self._config    = config  # ערכי משחק מוזרקים — לא מיובאים ישירות
+        self._config    = config  # injected game values — not imported directly
         self._scores    = {WHITE: 0, BLACK: 0}
         self._game_over = False
         self._winner: Optional[str] = None
 
     def get_piece_at(self, pos: Position) -> Optional[Piece]:
         """
-        מחזיר את הכלי במשבצת — בין אם הוא על הלוח ובין אם בתנועה.
+        Returns the piece at the square — whether on the board or in motion.
 
-        כלי בתנועה נמחק מהגריד ב-start_motion, אז בודקים גם ב-active_motions.
+        A piece in motion is removed from the grid at start_motion, so active_motions is also checked.
         """
         piece = self._board.get_piece(pos)
         if piece is not None:
@@ -98,14 +98,14 @@ class GameEngine:
 
     def request_move(self, src: Position, dst: Position) -> RequestMoveResult:
         """
-        מנסה להתחיל תנועה מ-src ל-dst.
+        Attempts to start a motion from src to dst.
 
-        סדר הבדיקות:
-        1. game_over — לא מקבלים תנועות
-        2. הכלי עסוק (כבר בתנועה)
-        3. אימות חוקיות דרך RuleEngine
-        4. חישוב משך התנועה לפי סוג הכלי ומרחק
-        5. העברה ל-Arbiter
+        Validation order:
+        1. game_over — no moves accepted
+        2. piece is busy (already in motion)
+        3. legality check via RuleEngine
+        4. compute duration based on piece type and distance
+        5. hand off to Arbiter
         """
         if self._game_over:
             return RequestMoveResult.GAME_OVER
@@ -126,10 +126,10 @@ class GameEngine:
 
     def request_jump(self, pos: Position) -> None:
         """
-        מבצע קפיצה לכלי במשבצת pos.
+        Performs a jump for the piece at square pos.
 
-        קפיצה אפשרית רק אם הכלי לא בתנועה כרגע.
-        הכלי נשאר במשבצתו אבל מסומן כ-airborne — יכול ללכוד מגיעים.
+        A jump is only possible if the piece is not currently in motion.
+        The piece stays on its square but is marked as airborne — it can capture arriving enemies.
         """
         if self._game_over:
             return
@@ -143,17 +143,17 @@ class GameEngine:
 
     def tick(self, delta_ms: int) -> None:
         """
-        מקדם את הזמן ב-delta_ms ומטפל בתנועות שהסתיימו.
+        Advances time by delta_ms and handles completed motions.
 
-        לכל תנועה שהסתיימה:
-        - אם חייל הגיע לקצה — מקדמים אותו למלכה
-        - אם הייתה לכידה — מפעילים _apply_capture
+        For each completed motion:
+        - if a pawn reached the far end — promote it to queen
+        - if there was a capture — call _apply_capture
         """
         completed = self._arbiter.advance_time(delta_ms)
         for motion in completed:
             dst   = motion.dst
             piece = self._board.get_piece(dst)
-            # קידום חייל: הגיע לשורה הראשונה (לבן) או האחרונה (שחור)
+            # pawn promotion: reached row 0 (white) or last row (black)
             if piece is not None and piece.type_code == PAWN:
                 promotion_row = 0 if piece.color == WHITE else self._board.rows - 1
                 if dst.row == promotion_row:
@@ -163,10 +163,10 @@ class GameEngine:
 
     def get_snapshot(self) -> GameSnapshot:
         """
-        מחזיר תמונת מצב נוכחית של המשחק.
+        Returns the current game state snapshot.
 
-        כלים בתנועה מוצגים ב-src שלהם בגריד (כדי שה-UI יראה אותם).
-        קפיצות (is_jump) לא מוצגות ב-src כי הכלי כבר מוצג על הלוח.
+        Pieces in motion are shown at their src in the grid (so the UI can see them).
+        Jumps (is_jump) are not shown at src because the piece is already visible on the board.
         """
         grid = [list(row) for row in self._board._grid]
         for m in self._arbiter.active_motions:
@@ -186,14 +186,14 @@ class GameEngine:
         )
 
     def _is_piece_busy(self, src: Position) -> bool:
-        """כלי עסוק אם יש תנועה פעילה (כולל קפיצה) שיצאה מ-src."""
+        """A piece is busy if there is an active motion (including a jump) originating from src."""
         return any(m.src == src for m in self._arbiter.active_motions)
 
     def _apply_capture(self, captured: Piece) -> None:
         """
-        מטפל בלכידת כלי:
-        - לכידת מלך → game_over, הניקוד של הצד הלוכד = אינסוף
-        - לכידת כלי אחר → מוסיף ניקוד לצד הלוכד
+        Handles a piece capture:
+        - capturing the king -> game_over, capturing side's score = infinity
+        - capturing any other piece -> adds score to the capturing side
         """
         scorer = BLACK if captured.color == WHITE else WHITE
         if captured.type_code == KING:

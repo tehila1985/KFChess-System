@@ -9,50 +9,50 @@ from engine.config import WHITE, WHITE_DIRECTION, BLACK_DIRECTION
 
 
 class MoveStatus(Enum):
-    """תוצאת אימות תנועה — מוחזרת מ-RuleEngine.validate_move."""
+    """Result of move validation — returned from RuleEngine.validate_move."""
     OK                   = auto()
     OUTSIDE_BOARD        = auto()
-    EMPTY_SOURCE         = auto()   # אין כלי במשבצת המקור
-    FRIENDLY_DESTINATION = auto()   # היעד תפוס על ידי כלי ידידותי
-    ILLEGAL_PIECE_MOVE   = auto()   # התנועה לא חוקית לסוג הכלי
+    EMPTY_SOURCE         = auto()   # no piece at the source square
+    FRIENDLY_DESTINATION = auto()   # destination occupied by a friendly piece
+    ILLEGAL_PIECE_MOVE   = auto()   # move is not legal for this piece type
 
 
 # ── Strategy Pattern: MovementRule ────────────────────────────────────
 #
-# כל סוג כלי מממש MovementRule בנפרד.
-# יתרון: הוספת כלי חדש = הוספת class אחד + רישום ב-_RULES.
-# RuleEngine לא יודע כלום על סוגי כלים ספציפיים.
+# Each piece type implements MovementRule separately.
+# Advantage: adding a new piece = adding one class + registering it in _RULES.
+# RuleEngine knows nothing about specific piece types.
 
 class MovementRule(ABC):
     @abstractmethod
     def is_legal(self, src: Position, dst: Position, board: Board) -> bool:
-        """בדיקה גיאומטרית בלבד — חסימת נתיב נבדקת ב-RuleEngine."""
+        """Geometric check only — path blocking is checked in RuleEngine."""
 
     def is_jumper(self) -> bool:
-        """האם הכלי קופץ מעל כלים אחרים (כמו פרש)."""
+        """Whether the piece jumps over other pieces (like a knight)."""
         return False
 
 
 class KingRule(MovementRule):
-    # מלך זז בדיוק משבצת אחת בכל כיוון (כולל אלכסון)
+    # king moves exactly one square in any direction (including diagonals)
     def is_legal(self, src: Position, dst: Position, board: Board) -> bool:
         return max(abs(src.row - dst.row), abs(src.col - dst.col)) == 1
 
 
 class RookRule(MovementRule):
-    # צריח זז בקו ישר (שורה או עמודה)
+    # rook moves in a straight line (row or column)
     def is_legal(self, src: Position, dst: Position, board: Board) -> bool:
         return src.row == dst.row or src.col == dst.col
 
 
 class BishopRule(MovementRule):
-    # רץ זז באלכסון — הפרש בשורות שווה לפרש בעמודות
+    # bishop moves diagonally — row difference equals column difference
     def is_legal(self, src: Position, dst: Position, board: Board) -> bool:
         return abs(src.row - dst.row) == abs(src.col - dst.col)
 
 
 class QueenRule(MovementRule):
-    # מלכה = צריח + רץ
+    # queen = rook + bishop
     _rook   = RookRule()
     _bishop = BishopRule()
 
@@ -61,22 +61,22 @@ class QueenRule(MovementRule):
 
 
 class KnightRule(MovementRule):
-    # פרש זז בצורת L: 2+1 או 1+2 משבצות
+    # knight moves in an L-shape: 2+1 or 1+2 squares
     def is_legal(self, src: Position, dst: Position, board: Board) -> bool:
         dr, dc = abs(src.row - dst.row), abs(src.col - dst.col)
         return (dr == 2 and dc == 1) or (dr == 1 and dc == 2)
 
     def is_jumper(self) -> bool:
-        # פרש קופץ מעל כלים — is_path_blocked לא רלוונטי עבורו
+        # knight jumps over pieces — is_path_blocked is not relevant for it
         return True
 
 
 class PawnRule(MovementRule):
     """
-    חייל — הכלי המורכב ביותר:
-    - זז קדימה (לפי צבע) לתא ריק
-    - יכול לזוז 2 תאים מהשורה ההתחלתית (אם שניהם ריקים)
-    - לוכד רק באלכסון (לא קדימה)
+    Pawn — the most complex piece:
+    - moves forward (by color) to an empty square
+    - can move 2 squares from the starting row (if both are empty)
+    - captures only diagonally (not straight ahead)
     """
     def is_legal(self, src: Position, dst: Position, board: Board) -> bool:
         piece = board.get_piece(src)
@@ -86,16 +86,16 @@ class PawnRule(MovementRule):
         direction = WHITE_DIRECTION if piece.color == WHITE else BLACK_DIRECTION
         start_row = board.rows - 1 if piece.color == WHITE else 0
 
-        # צעד אחד קדימה לתא ריק
+        # one step forward to an empty square
         if src.col == dst.col and dst.row == src.row + direction:
             return board.is_empty(dst)
 
-        # שני צעדים קדימה מהשורה ההתחלתית — שני התאים חייבים להיות ריקים
+        # two steps forward from the starting row — both squares must be empty
         mid = Position(src.row + direction, src.col)
         if src.col == dst.col and src.row == start_row and dst.row == src.row + 2 * direction:
             return board.is_empty(mid) and board.is_empty(dst)
 
-        # לכידה אלכסונית — חייב להיות כלי אויב ביעד
+        # diagonal capture — must be an enemy piece at the destination
         if abs(src.col - dst.col) == 1 and dst.row == src.row + direction:
             target = board.get_piece(dst)
             return target is not None and target.color != piece.color
@@ -104,8 +104,8 @@ class PawnRule(MovementRule):
 
 
 # ── Rule registry ──────────────────────────────────────────────────────
-# מילון סטטי: type_code → MovementRule instance.
-# כל הכלים הם singletons — אין state, אפשר לשתף.
+# Static dictionary: type_code → MovementRule instance.
+# All rules are singletons — no state, safe to share.
 _RULES: dict[str, MovementRule] = {
     'K': KingRule(),
     'Q': QueenRule(),
@@ -124,15 +124,15 @@ def get_rule(type_code: str) -> MovementRule | None:
 
 class RuleEngine:
     """
-    Stateless validator — לא שומר state, לא משנה את הלוח.
+    Stateless validator — holds no state, does not modify the board.
 
-    אחריות יחידה: לקבל (board, move) ולהחזיר MoveStatus.
-    סדר הבדיקות:
-      1. גבולות לוח
-      2. קיום כלי במקור
-      3. יעד לא תפוס על ידי ידידותי
-      4. חוקיות גיאומטרית לפי סוג הכלי
-      5. חסימת נתיב (לא רלוונטי לפרש)
+    Single responsibility: receive (board, move) and return MoveStatus.
+    Validation order:
+      1. Board bounds
+      2. Piece exists at source
+      3. Destination not occupied by a friendly piece
+      4. Geometric legality by piece type
+      5. Path blocking (not relevant for knights)
     """
 
     def validate_move(self, board: Board, move: Move) -> MoveStatus:
@@ -153,7 +153,7 @@ class RuleEngine:
         if rule is None or not rule.is_legal(src, dst, board):
             return MoveStatus.ILLEGAL_PIECE_MOVE
 
-        # חסימת נתיב — פרש פטור (is_jumper=True)
+        # path blocking — knights are exempt (is_jumper=True)
         if board.is_path_blocked((src.row, src.col), (dst.row, dst.col), rule.is_jumper()):
             return MoveStatus.ILLEGAL_PIECE_MOVE
 

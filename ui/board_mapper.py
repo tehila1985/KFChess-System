@@ -4,13 +4,13 @@ from engine.models.position import Position
 
 class BoardMapper:
     """
-    ממיר קואורדינטות פיקסל (x, y) למשבצת בלוח (row, col).
+    Converts pixel coordinates (x, y) to a board square (row, col).
 
-    הסיבה לקובץ נפרד: שכבת ה-UI היחידה שמכירה פיקסלים.
-    GameEngine ו-RuleEngine לא יודעים כלום על גדלי תאים.
+    Reason for a separate file: the only UI layer that knows about pixels.
+    GameEngine and RuleEngine know nothing about cell sizes.
 
-    חישוב: col = x // cell_size, row = y // cell_size
-    קואורדינטות שליליות או מחוץ לגריד → None.
+    Calculation: col = x // cell_size, row = y // cell_size
+    Negative or out-of-grid coordinates -> None.
     """
 
     def __init__(self, cell_size: int, rows: int, cols: int):
@@ -19,7 +19,7 @@ class BoardMapper:
         self._cols      = cols
 
     def to_position(self, x: int, y: int) -> Optional[Position]:
-        """מחזיר Position, או None אם הקליק מחוץ ללוח."""
+        """Returns a Position, or None if the click is outside the board."""
         if x < 0 or y < 0:
             return None
         col = x // self._cell_size
