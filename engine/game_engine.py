@@ -9,7 +9,7 @@ from engine.models.piece import Piece
 from engine.models.position import Position
 from engine.rules.rule_engine import MoveStatus, RuleEngine
 from engine.arbiter.real_time_arbiter import RealTimeArbiter
-from engine.config import WHITE, BLACK, KING, QUEEN, PAWN, PIECE_SCORE, MOVE_DURATION_MS
+from engine.config import WHITE, BLACK, KING, QUEEN, PAWN, GameConfig, DEFAULT_CONFIG
 
 
 class RequestMoveResult(Enum):
@@ -72,10 +72,12 @@ class GameEngine:
     לא מכיר UI, לא מכיר פיקסלים.
     """
 
-    def __init__(self, board: Board, rule_engine: RuleEngine, arbiter: RealTimeArbiter):
+    def __init__(self, board: Board, rule_engine: RuleEngine, arbiter: RealTimeArbiter,
+                 config: GameConfig = DEFAULT_CONFIG):
         self._board     = board
         self._rules     = rule_engine
         self._arbiter   = arbiter
+        self._config    = config  # ערכי משחק מוזרקים — לא מיובאים ישירות
         self._scores    = {WHITE: 0, BLACK: 0}
         self._game_over = False
         self._winner: Optional[str] = None
@@ -116,7 +118,7 @@ class GameEngine:
             return _STATUS_MAP[status]
 
         piece    = self._board.get_piece(src)
-        speed    = MOVE_DURATION_MS.get(piece.type_code, 1000)
+        speed    = self._config.move_duration_ms.get(piece.type_code, 1000)
         distance = max(abs(dst.row - src.row), abs(dst.col - src.col))
         duration = speed * distance
         self._arbiter.start_motion(piece, src, dst, duration)
@@ -199,4 +201,4 @@ class GameEngine:
             self._winner    = scorer
             self._scores[scorer] = float('inf')
         else:
-            self._scores[scorer] += PIECE_SCORE.get(captured.type_code, 0)
+            self._scores[scorer] += self._config.piece_score.get(captured.type_code, 0)

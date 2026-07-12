@@ -2,7 +2,7 @@ from engine.game_engine import GameEngine
 from engine.rules.rule_engine import RuleEngine
 from engine.arbiter.real_time_arbiter import RealTimeArbiter
 from engine.models.board import Board
-from engine.config import BOARD_SECTION, COMMANDS_SECTION, PIXEL_TO_GRID_DIVISOR, EMPTY_CELL, WHITE, BLACK
+from engine.config import BOARD_SECTION, COMMANDS_SECTION, PIXEL_TO_GRID_DIVISOR, EMPTY_CELL, WHITE, BLACK, DEFAULT_CONFIG
 from ui.controller import Controller
 from ui.text_renderer import TextRenderer
 from ui.board_mapper import BoardMapper
@@ -78,10 +78,11 @@ class GameRunner:
             return
 
         # בניית שכבות — סדר חשוב: Board קודם, אחר כך כל מה שתלוי בו
-        board      = Board(board_lines)
-        arbiter    = RealTimeArbiter(board)
+        board       = Board(board_lines)
+        config      = DEFAULT_CONFIG
+        arbiter     = RealTimeArbiter(board, config)
         rule_engine = RuleEngine()
-        engine     = GameEngine(board=board, rule_engine=rule_engine, arbiter=arbiter)
+        engine      = GameEngine(board=board, rule_engine=rule_engine, arbiter=arbiter, config=config)
         mapper     = BoardMapper(cell_size=PIXEL_TO_GRID_DIVISOR, rows=board.rows, cols=board.cols)
         controller = Controller(engine, mapper)
 

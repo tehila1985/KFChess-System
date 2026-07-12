@@ -5,7 +5,7 @@ from typing import Optional
 from engine.models.board import Board
 from engine.models.piece import Piece
 from engine.models.position import Position
-from engine.config import JUMP_DURATION_MS
+from engine.config import GameConfig, DEFAULT_CONFIG
 
 
 @dataclass(frozen=True)
@@ -52,8 +52,9 @@ class RealTimeArbiter:
     לא מכיר כללי שחמט — זה תפקיד RuleEngine.
     """
 
-    def __init__(self, board: Board):
+    def __init__(self, board: Board, config: GameConfig = DEFAULT_CONFIG):
         self._board        = board
+        self._config       = config
         self._current_time = 0
         self._motions: list[ActiveMotion] = []
 
@@ -86,7 +87,7 @@ class RealTimeArbiter:
         piece = self._board.get_piece(pos)
         if piece is None:
             return
-        self._motions.append(ActiveMotion(piece, pos, pos, self._current_time, JUMP_DURATION_MS, is_jump=True))
+        self._motions.append(ActiveMotion(piece, pos, pos, self._current_time, self._config.jump_duration_ms, is_jump=True))
 
     def advance_time(self, delta_ms: int) -> list[CompletedMotion]:
         """מקדם את שעון הסימולציה ומפעיל פתרון תנועות שהסתיימו."""
