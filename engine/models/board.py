@@ -57,11 +57,3 @@ class Board:
             c += dc
         return False
 
-    def move_piece_coords(self, start: tuple, end: tuple) -> str:
-        """Moves a piece by raw coordinates; returns the captured token."""
-        sr, sc = start
-        tr, tc = end
-        captured          = self._grid[tr][tc]
-        self._grid[tr][tc] = self._grid[sr][sc]
-        self._grid[sr][sc] = EMPTY
-        return captured
