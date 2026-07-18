@@ -9,6 +9,7 @@ from engine.models.board import Board
 from engine.rules.rule_engine import RuleEngine
 from ui.board_mapper import BoardMapper
 from ui.controller import Controller
+from ui.animation import AnimationClock, interpolate_pixel
 from ui.state.game_events import MoveAccepted, MoveRejected
 from ui.state.game_facade import GameFacade
 from ui.ui_config import ASSETS_DIR, DEFAULT_UI_CONFIG
@@ -71,11 +72,15 @@ def _render_frame(
 ) -> Img:
     frame = board_img.copy()
     snapshot = facade.get_snapshot()
+    active_motions = list(snapshot.active_motions)
+    moving_sources = {motion.src for motion in active_motions}
 
     cell_px = DEFAULT_UI_CONFIG.board_cell_px
     for row_idx, row in enumerate(snapshot.grid):
         for col_idx, token in enumerate(row):
             if token == ".":
+                continue
+            if any(pos.row == row_idx and pos.col == col_idx for pos in moving_sources):
                 continue
             sprite = piece_cache.get(token)
             if sprite is None:
@@ -83,6 +88,20 @@ def _render_frame(
             x = col_idx * cell_px + 8
             y = row_idx * cell_px + 8
             sprite.draw_on(frame, x, y)
+
+    for motion in active_motions:
+        sprite = piece_cache.get(motion.piece.token)
+        if sprite is None:
+            continue
+
+        duration = max(1, motion.end_time - motion.start_time)
+        elapsed = facade.current_time - motion.start_time
+        progress = max(0.0, min(1.0, elapsed / duration))
+
+        src_px = (motion.src.col * cell_px + 8, motion.src.row * cell_px + 8)
+        dst_px = (motion.dst.col * cell_px + 8, motion.dst.row * cell_px + 8)
+        x, y = interpolate_pixel(src_px, dst_px, progress)
+        sprite.draw_on(frame, x, y)
 
     frame.put_text(f"White captures: {scores.white_captures}", 10, 900, scale=0.7)
     frame.put_text(f"Black captures: {scores.black_captures}", 10, 925, scale=0.7)
@@ -123,6 +142,7 @@ def run_game() -> None:
 
     click_state = {"x": None, "y": None, "clicked": False}
     status_line = "Click a piece, then click destination. Press Q to quit."
+    clock = AnimationClock()
 
     def _on_mouse(event: int, x: int, y: int, _flags: int, _param: object) -> None:
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -146,7 +166,10 @@ def run_game() -> None:
             if result is not None:
                 status_line = f"Move result: {result.name}"
 
-        facade.tick(16)
+        delta_ms = clock.tick_ms()
+        if delta_ms <= 0:
+            delta_ms = 16
+        facade.tick(delta_ms)
 
         frame = _render_frame(
             board_img=board_img,
