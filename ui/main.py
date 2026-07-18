@@ -5,46 +5,16 @@ import json
 import numpy as np
 from pathlib import Path
 
-from engine.arbiter.real_time_arbiter import RealTimeArbiter
-from engine.game_engine import GameEngine
-from engine.models.board import Board
-from engine.rules.rule_engine import RuleEngine
 from engine.config import DEFAULT_CONFIG
 from ui.board_mapper import BoardMapper
-from ui.controller import Controller
 from ui.animation import AnimationClock, interpolate_pixel
+from ui.container import build_container
 from ui.state.game_events import MoveAccepted, MoveRejected
-from ui.state.game_facade import GameFacade
 from ui.ui_config import ASSETS_DIR, DEFAULT_UI_CONFIG
-from ui.ui_components.banner import Banner
-from ui.ui_components.moves_feed import MovesFeed
-from ui.ui_components.score_panel import ScorePanel
 from ui.vendor.img import Img
 
 
 ANIM_STATES = ("idle", "move", "jump", "short_rest", "long_rest")
-
-
-def build_ui(board_lines: list[str]) -> tuple[GameFacade, Controller, MovesFeed, ScorePanel, Banner]:
-    board = Board(board_lines)
-    engine = GameEngine(board, RuleEngine(), RealTimeArbiter(board))
-    facade = GameFacade(engine)
-
-    mapper = BoardMapper(
-        cell_size=DEFAULT_UI_CONFIG.board_cell_px,
-        rows=len(board_lines),
-        cols=len(board_lines[0].split()),
-    )
-    controller = Controller(facade, mapper)
-
-    moves = MovesFeed()
-    scores = ScorePanel()
-    banner = Banner()
-    moves.bind(facade.subject)
-    scores.bind(facade.subject)
-    banner.bind(facade.subject)
-
-    return facade, controller, moves, scores, banner
 
 
 def _default_board_lines() -> list[str]:
@@ -284,12 +254,13 @@ def _render_frame(
 
 def run_game() -> None:
     board_lines = _default_board_lines()
-    facade, controller, moves, scores, banner = build_ui(board_lines)
-    mapper = BoardMapper(
-        cell_size=DEFAULT_UI_CONFIG.board_cell_px,
-        rows=len(board_lines),
-        cols=len(board_lines[0].split()),
-    )
+    container = build_container(board_lines)
+    facade = container.facade
+    controller = container.controller
+    moves = container.moves
+    scores = container.scores
+    banner = container.banner
+    mapper = container.mapper
 
     board_img_path = ASSETS_DIR / "board.png"
     board_img = Img.read(str(board_img_path))
