@@ -1,7 +1,15 @@
-from typing import Optional
-from engine.game_engine import GameEngine, RequestMoveResult
+from typing import Optional, Protocol
+from engine.game_engine import RequestMoveResult
 from engine.models.position import Position
 from ui.board_mapper import BoardMapper
+
+
+class _MoveRequester(Protocol):
+    def get_piece_at(self, pos: Position):
+        ...
+
+    def request_move(self, src: Position, dst: Position) -> RequestMoveResult:
+        ...
 
 
 class Controller:
@@ -20,7 +28,7 @@ class Controller:
     Controller knows no chess rules — it only manages selection state.
     """
 
-    def __init__(self, engine: GameEngine, mapper: BoardMapper):
+    def __init__(self, engine: _MoveRequester, mapper: BoardMapper):
         self._engine = engine
         self._mapper = mapper
         self._src: Optional[Position] = None  # the square selected on the first click
