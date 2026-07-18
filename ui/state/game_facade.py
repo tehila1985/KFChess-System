@@ -47,6 +47,9 @@ class GameFacade:
     def get_snapshot(self):
         return self._engine.get_snapshot()
 
+    def get_legal_destinations(self, src: Position) -> tuple[Position, ...]:
+        return self._engine.get_legal_destinations(src)
+
     def is_on_cooldown(self, pos: Position) -> bool:
         return self._engine.is_on_cooldown(pos)
 

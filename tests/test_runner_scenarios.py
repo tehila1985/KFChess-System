@@ -303,31 +303,31 @@ class TestGameOver:
 class TestPawnSpecial:
     def test_white_pawn_double_from_start_valid(self, capsys):
         out = run(
-            "Board:\n. . .\n. . .\n. . .\n. wP .\nCommands:\nclick 150 350\nclick 150 150\nwait 2000\nprint board\n",
+            "Board:\n. . .\n. . .\n. . .\n. wP .\n. . .\nCommands:\nclick 150 350\nclick 150 150\nwait 2000\nprint board\n",
             capsys,
         )
-        assert out == ". . .\n. wP .\n. . .\n. . ."
+        assert out == ". . .\n. wP .\n. . .\n. . .\n. . ."
 
     def test_black_pawn_double_from_start_valid(self, capsys):
         out = run(
-            "Board:\n. bP .\n. . .\n. . .\n. . .\nCommands:\nclick 150 50\nclick 150 250\nwait 2000\nprint board\n",
+            "Board:\n. . .\n. bP .\n. . .\n. . .\n. . .\nCommands:\nclick 150 150\nclick 150 350\nwait 2000\nprint board\n",
             capsys,
         )
-        assert out == ". . .\n. . .\n. bP .\n. . ."
+        assert out == ". . .\n. . .\n. . .\n. bP .\n. . ."
 
     def test_white_pawn_double_blocked_invalid(self, capsys):
         out = run(
-            "Board:\n. . .\n. . .\n. bR .\n. wP .\nCommands:\nclick 150 350\nclick 150 150\nwait 2000\nprint board\n",
+            "Board:\n. . .\n. bR .\n. wP .\n. . .\nCommands:\nclick 150 250\nclick 150 50\nwait 2000\nprint board\n",
             capsys,
         )
-        assert out == ". . .\n. . .\n. bR .\n. wP ."
+        assert out == ". . .\n. bR .\n. wP .\n. . ."
 
     def test_white_pawn_double_from_non_start_invalid(self, capsys):
         out = run(
-            "Board:\n. . .\n. . .\n. wP .\n. . .\nCommands:\nclick 150 250\nclick 150 50\nwait 2000\nprint board\n",
+            "Board:\n. . .\n. . .\n. wP .\n. . .\n. . .\nCommands:\nclick 150 250\nclick 150 50\nwait 2000\nprint board\n",
             capsys,
         )
-        assert out == ". . .\n. . .\n. wP .\n. . ."
+        assert out == ". . .\n. . .\n. wP .\n. . .\n. . ."
 
     def test_white_pawn_promotes_to_queen(self, capsys):
         out = run(

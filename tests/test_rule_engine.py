@@ -139,17 +139,25 @@ class TestPawnRule:
         assert not self.rule.is_legal(pos(1,1), pos(2,1), b)
 
     def test_white_double_step_from_start(self):
-        # 4-row board: white start_row = rows-1 = 3, pawn at (3,1), target (1,1)
-        b = Board([". . .", ". . .", ". . .", ". wP ."])
-        assert self.rule.is_legal(pos(3,1), pos(1,1), b)
+        # 4-row board: white start row is rows-2 = 2
+        b = Board([". . .", ". . .", ". wP .", ". . ."])
+        assert self.rule.is_legal(pos(2,1), pos(0,1), b)
 
     def test_white_double_step_blocked(self):
-        b = Board([". . .", ". . .", ". wP .", ". wP .", ". . ."])
-        assert not self.rule.is_legal(pos(3,1), pos(1,1), b)
+        b = Board([". . .", ". wR .", ". wP .", ". . ."])
+        assert not self.rule.is_legal(pos(2,1), pos(0,1), b)
+
+    def test_white_double_step_not_from_start(self):
+        b = Board([". . .", ". . .", ". wP .", ". . .", ". . ."])
+        assert not self.rule.is_legal(pos(2,1), pos(0,1), b)
 
     def test_black_one_step_forward(self):
         b = Board([". bP .", ". . .", ". . ."])
         assert self.rule.is_legal(pos(0,1), pos(1,1), b)
+
+    def test_black_double_step_from_start(self):
+        b = Board([". . .", ". bP .", ". . .", ". . ."])
+        assert self.rule.is_legal(pos(1,1), pos(3,1), b)
 
     def test_white_diagonal_capture(self):
         b = Board(["bR . .", ". wP .", ". . ."])

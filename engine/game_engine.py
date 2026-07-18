@@ -134,6 +134,29 @@ class GameEngine:
         self._arbiter.start_motion(piece, src, dst, duration)
         return RequestMoveResult.ACCEPTED
 
+    def get_legal_destinations(self, src: Position) -> tuple[Position, ...]:
+        if self._game_over:
+            return ()
+        if not self._board.in_bounds(src):
+            return ()
+        if self._is_piece_busy(src):
+            return ()
+        if self._arbiter.is_on_cooldown(src):
+            return ()
+        if self._board.get_piece(src) is None:
+            return ()
+
+        legal: list[Position] = []
+        for row in range(self._board.rows):
+            for col in range(self._board.cols):
+                dst = Position(row, col)
+                if dst == src:
+                    continue
+                status = self._rules.validate_move(self._board, Move(src, dst))
+                if status == MoveStatus.OK:
+                    legal.append(dst)
+        return tuple(legal)
+
     def is_on_cooldown(self, pos: Position) -> bool:
         return self._arbiter.is_on_cooldown(pos)
 

@@ -84,7 +84,8 @@ class PawnRule(MovementRule):
             return False
 
         direction = WHITE_DIRECTION if piece.color == WHITE else BLACK_DIRECTION
-        start_row = board.rows - 1 if piece.color == WHITE else 0
+        # White pawns start one row above the bottom edge, black pawns one row below the top edge.
+        start_row = board.rows - 2 if piece.color == WHITE else 1
 
         # one step forward to an empty square
         if src.col == dst.col and dst.row == src.row + direction:

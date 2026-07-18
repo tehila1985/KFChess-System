@@ -163,6 +163,8 @@ def _render_frame(
     elapsed_ms: int,
     selected_pos: tuple[int, int] | None,
     selection_overlay: Img,
+    legal_moves_overlay: Img,
+    legal_targets: tuple[tuple[int, int], ...],
 ) -> Img:
     board_frame = board_img.copy()
     snapshot = facade.get_snapshot()
@@ -202,6 +204,11 @@ def _render_frame(
                 top_y = y + (overlay_h - clip_h)
                 overlay_part = Img(cooldown_overlay.pixels[overlay_h - clip_h :, :, :].copy())
                 overlay_part.draw_on(board_frame, x, top_y)
+
+    for row_idx, col_idx in legal_targets:
+        lx = col_idx * cell_px + 8
+        ly = row_idx * cell_px + 8
+        legal_moves_overlay.draw_on(board_frame, lx, ly)
 
     for motion in active_motions:
         motion_state = "jump" if motion.is_jump else "move"
@@ -298,6 +305,11 @@ def run_game() -> None:
     selection_px[:, -4:, :] = (0, 255, 255, 255)
     selection_overlay = Img(selection_px)
 
+    legal_px = np.zeros((84, 84, 4), dtype=np.uint8)
+    cv2.circle(legal_px, (42, 42), 12, (40, 220, 60, 210), -1)
+    cv2.circle(legal_px, (42, 42), 14, (10, 110, 30, 220), 2)
+    legal_moves_overlay = Img(legal_px)
+
     piece_dir = ASSETS_DIR / "pieces4" / "pieces4"
     frames_by_token, fps_by_token = _load_piece4_frames(piece_dir)
 
@@ -362,6 +374,12 @@ def run_game() -> None:
             if controller.pending_src is not None
             else None,
             selection_overlay=selection_overlay,
+            legal_moves_overlay=legal_moves_overlay,
+            legal_targets=tuple(
+                (p.row, p.col) for p in facade.get_legal_destinations(controller.pending_src)
+            )
+            if controller.pending_src is not None
+            else (),
         )
         key = frame.show(window_title)
         if key in (ord("q"), ord("Q"), 27):

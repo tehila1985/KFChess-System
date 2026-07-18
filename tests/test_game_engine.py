@@ -190,6 +190,23 @@ class TestGetSnapshot:
         assert snap.winner is None
 
 
+class TestLegalDestinations:
+    def test_returns_rook_line_moves(self):
+        eng = make_engine(["wR . . ."])
+        legal = set(eng.get_legal_destinations(pos(0, 0)))
+        assert legal == {pos(0, 1), pos(0, 2), pos(0, 3)}
+
+    def test_returns_empty_when_piece_on_cooldown(self):
+        eng = make_engine(["wR . ."])
+        eng.request_move(pos(0, 0), pos(0, 1))
+        eng.tick(1000)
+        assert eng.get_legal_destinations(pos(0, 1)) == ()
+
+    def test_returns_empty_when_source_empty(self):
+        eng = make_engine([". . ."])
+        assert eng.get_legal_destinations(pos(0, 0)) == ()
+
+
 # ── dependency injection ───────────────────────────────────────────────
 
 class TestDependencyInjection:
