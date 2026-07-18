@@ -9,6 +9,7 @@ from ui.state.observer import Subject, Subscription
 @dataclass
 class Banner:
     message: str = ""
+    dirty: bool = True
     _subscription: Subscription | None = None
 
     def bind(self, subject: Subject) -> None:
@@ -17,3 +18,4 @@ class Banner:
     def _on_game_over(self, event: GameOver) -> None:
         winner = event.winner or "unknown"
         self.message = f"Game Over - winner: {winner}"
+        self.dirty = True

@@ -11,6 +11,7 @@ class MovesFeed:
     entries: list[str] = field(default_factory=list)
     white_entries: list[str] = field(default_factory=list)
     black_entries: list[str] = field(default_factory=list)
+    dirty: bool = True
     _subscription: Subscription | None = None
 
     def bind(self, subject: Subject) -> None:
@@ -32,3 +33,4 @@ class MovesFeed:
             self.white_entries.append(move_text)
         elif event.side == "b":
             self.black_entries.append(move_text)
+        self.dirty = True

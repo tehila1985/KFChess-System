@@ -10,6 +10,7 @@ from ui.state.observer import Subject, Subscription
 class ScorePanel:
     white_captures: int = 0
     black_captures: int = 0
+    dirty: bool = True
     _subscription: Subscription | None = None
 
     def bind(self, subject: Subject) -> None:
@@ -20,3 +21,4 @@ class ScorePanel:
             self.black_captures += 1
         else:
             self.white_captures += 1
+        self.dirty = True
