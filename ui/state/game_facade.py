@@ -6,6 +6,7 @@ from engine.game_engine import GameEngine, MotionSummary, RequestMoveResult
 from engine.models.piece import Piece
 from engine.models.position import Position
 from ui.state.game_events import GameOver, MoveAccepted, MoveRejected, PieceArrived, PieceCaptured
+from ui.state.outcome import ActionOutcome
 from ui.state.observer import EventBus, Subject
 
 
@@ -56,7 +57,7 @@ class GameFacade:
     def is_game_over(self) -> bool:
         return self._engine.is_game_over()
 
-    def request_move(self, src: Position, dst: Position) -> RequestMoveResult:
+    def request_move(self, src: Position, dst: Position) -> ActionOutcome:
         moving_piece = self._engine.get_piece_at(src)
         result = self._engine.request_move(src, dst)
         if result == RequestMoveResult.ACCEPTED:
@@ -64,9 +65,10 @@ class GameFacade:
             piece_type = moving_piece.type_code if moving_piece is not None else "?"
             at_ms = self._engine.current_time
             self._subject.publish(MoveAccepted(side=side, piece_type=piece_type, at_ms=at_ms, src=src, dst=dst))
+            return ActionOutcome.ok()
         else:
             self._subject.publish(MoveRejected(src=src, dst=dst, reason=result))
-        return result
+            return ActionOutcome.fail(result)
 
     def request_jump(self, pos: Position) -> None:
         self._engine.request_jump(pos)

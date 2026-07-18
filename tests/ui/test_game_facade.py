@@ -5,6 +5,7 @@ from engine.models.position import Position
 from engine.rules.rule_engine import RuleEngine
 from ui.state.game_events import GameOver, MoveAccepted, MoveRejected
 from ui.state.game_facade import GameFacade
+from ui.state.outcome import ActionOutcome
 
 
 def _facade(board_lines: list[str]) -> GameFacade:
@@ -20,7 +21,7 @@ def test_request_move_publishes_move_accepted() -> None:
 
     result = facade.request_move(Position(0, 0), Position(0, 3))
 
-    assert result == RequestMoveResult.ACCEPTED
+    assert result == ActionOutcome.ok()
     assert len(events) == 1
     assert events[0].side == "w"
     assert events[0].piece_type == "R"
@@ -36,7 +37,7 @@ def test_request_move_publishes_move_rejected() -> None:
 
     result = facade.request_move(Position(0, 0), Position(2, 2))
 
-    assert result == RequestMoveResult.ILLEGAL_PIECE_MOVE
+    assert result == ActionOutcome.fail(RequestMoveResult.ILLEGAL_PIECE_MOVE)
     assert len(events) == 1
     assert events[0].reason == RequestMoveResult.ILLEGAL_PIECE_MOVE
 
@@ -46,7 +47,7 @@ def test_tick_publishes_game_over_once() -> None:
     events: list[GameOver] = []
     facade.subject.subscribe(GameOver, lambda event: events.append(event))
 
-    assert facade.request_move(Position(0, 0), Position(0, 2)) == RequestMoveResult.ACCEPTED
+    assert facade.request_move(Position(0, 0), Position(0, 2)) == ActionOutcome.ok()
 
     facade.tick(2000)
     facade.tick(2000)

@@ -9,6 +9,7 @@ from engine.config import DEFAULT_CONFIG
 from ui.board_mapper import BoardMapper
 from ui.animation import AnimationClock, interpolate_pixel
 from ui.container import build_container
+from ui.controller_outcome import ControllerOutcomeAdapter
 from ui.state.game_events import MoveAccepted, MoveRejected
 from ui.ui_config import ASSETS_DIR, DEFAULT_UI_CONFIG
 from ui.vendor.img import Img
@@ -257,6 +258,7 @@ def run_game() -> None:
     container = build_container(board_lines)
     facade = container.facade
     controller = container.controller
+    ui_controller = ControllerOutcomeAdapter(controller)
     moves = container.moves
     scores = container.scores
     banner = container.banner
@@ -314,12 +316,15 @@ def run_game() -> None:
             y = int(click_state["y"])
             click_state["clicked"] = False
             # Board is centered between sidebars, so map window x to board-local x.
-            result = controller.on_click(x - sidebar_w, y)
+            result = ui_controller.on_click(x - sidebar_w, y)
             if result is not None:
-                if result.name == "PIECE_ON_COOLDOWN":
+                if result.success:
+                    status_line = "Move accepted"
+                elif result.reason is not None and result.reason.name == "PIECE_ON_COOLDOWN":
                     status_line = "Piece is cooling down - wait a moment."
                 else:
-                    status_line = f"Move result: {result.name}"
+                    reason = result.reason.name if result.reason is not None else "UNKNOWN"
+                    status_line = f"Move result: {reason}"
 
         delta_ms = clock.tick_ms()
         if delta_ms <= 0:

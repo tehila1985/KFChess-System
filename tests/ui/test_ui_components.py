@@ -10,6 +10,7 @@ from engine.models.board import Board
 from engine.arbiter.real_time_arbiter import RealTimeArbiter
 from engine.game_engine import GameEngine, RequestMoveResult
 from engine.rules.rule_engine import RuleEngine
+from ui.state.outcome import ActionOutcome
 
 
 def test_moves_feed_appends_on_move_accepted() -> None:
@@ -43,7 +44,7 @@ def test_score_panel_updates_after_real_capture_from_facade_tick() -> None:
     panel.bind(facade.subject)
 
     result = facade.request_move(Position(0, 0), Position(0, 3))
-    assert result == RequestMoveResult.ACCEPTED
+    assert result == ActionOutcome.ok()
 
     facade.tick(3000)
 

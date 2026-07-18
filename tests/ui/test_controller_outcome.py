@@ -1,0 +1,28 @@
+from engine.game_engine import RequestMoveResult
+from ui.controller_outcome import ControllerOutcomeAdapter
+from ui.state.outcome import ActionOutcome
+
+
+class _ControllerStub:
+    def __init__(self, result):
+        self._result = result
+        self.pending_src = None
+
+    def on_click(self, x: int, y: int):
+        _ = (x, y)
+        return self._result
+
+
+def test_adapter_returns_none_when_controller_returns_none() -> None:
+    adapter = ControllerOutcomeAdapter(_ControllerStub(None))
+    assert adapter.on_click(1, 2) is None
+
+
+def test_adapter_maps_accept_to_success_outcome() -> None:
+    adapter = ControllerOutcomeAdapter(_ControllerStub(RequestMoveResult.ACCEPTED))
+    assert adapter.on_click(1, 2) == ActionOutcome.ok()
+
+
+def test_adapter_maps_failure_to_failed_outcome() -> None:
+    adapter = ControllerOutcomeAdapter(_ControllerStub(RequestMoveResult.ILLEGAL_PIECE_MOVE))
+    assert adapter.on_click(1, 2) == ActionOutcome.fail(RequestMoveResult.ILLEGAL_PIECE_MOVE)
