@@ -49,14 +49,14 @@ def build_ui(board_lines: list[str]) -> tuple[GameFacade, Controller, MovesFeed,
 
 def _default_board_lines() -> list[str]:
     return [
-        "bR bN bR bK bQ bR bN bR",
+        "bR bN bB bQ bK bB bN bR",
         "bP bP bP bP bP bP bP bP",
         ". . . . . . . .",
         ". . . . . . . .",
         ". . . . . . . .",
         ". . . . . . . .",
         "wP wP wP wP wP wP wP wP",
-        "wR wN wR wK wQ wR wN wR",
+        "wR wN wB wQ wK wB wN wR",
     ]
 
 

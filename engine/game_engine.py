@@ -134,6 +134,12 @@ class GameEngine:
         self._arbiter.start_motion(piece, src, dst, duration)
         return RequestMoveResult.ACCEPTED
 
+    def is_on_cooldown(self, pos: Position) -> bool:
+        return self._arbiter.is_on_cooldown(pos)
+
+    def is_game_over(self) -> bool:
+        return self._game_over
+
     def request_jump(self, pos: Position) -> None:
         """
         Performs a jump for the piece at square pos.

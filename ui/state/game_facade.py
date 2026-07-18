@@ -47,6 +47,12 @@ class GameFacade:
     def get_snapshot(self):
         return self._engine.get_snapshot()
 
+    def is_on_cooldown(self, pos: Position) -> bool:
+        return self._engine.is_on_cooldown(pos)
+
+    def is_game_over(self) -> bool:
+        return self._engine.is_game_over()
+
     def request_move(self, src: Position, dst: Position) -> RequestMoveResult:
         moving_piece = self._engine.get_piece_at(src)
         result = self._engine.request_move(src, dst)

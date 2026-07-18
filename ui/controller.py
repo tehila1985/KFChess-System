@@ -8,6 +8,12 @@ class _MoveRequester(Protocol):
     def get_piece_at(self, pos: Position):
         ...
 
+    def is_on_cooldown(self, pos: Position) -> bool:
+        ...
+
+    def is_game_over(self) -> bool:
+        ...
+
     def request_move(self, src: Position, dst: Position) -> RequestMoveResult:
         ...
 
@@ -53,12 +59,20 @@ class Controller:
 
         # first click — select source
         if self._src is None:
+            if self._engine.get_piece_at(pos) is None:
+                return None
+            if self._engine.is_on_cooldown(pos) and not self._engine.is_game_over():
+                return None
             self._src = pos
             return None
 
         # second click on a friendly piece — switch selection
         src       = self._src
         src_piece = self._engine.get_piece_at(src)
+        if src_piece is None:
+            # Selection became stale (e.g. piece already moved). Treat click as fresh selection.
+            self._src = pos if self._engine.get_piece_at(pos) is not None else None
+            return None
         dst_piece = self._engine.get_piece_at(pos)
         if src_piece is not None and dst_piece is not None and src_piece.color == dst_piece.color:
             self._src = pos
