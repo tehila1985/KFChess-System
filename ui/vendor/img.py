@@ -74,9 +74,11 @@ class Img:
         scale: float = 1.0,
     ) -> "Img":
         if self._pixels.shape[2] == 4:
-            canvas = self._pixels[:, :, :3]
+            canvas = np.ascontiguousarray(self._pixels[:, :, :3])
+            self._pixels[:, :, :3] = canvas
         else:
-            canvas = self._pixels
+            canvas = np.ascontiguousarray(self._pixels)
+            self._pixels[:, :, :3] = canvas[:, :, :3]
         cv2.putText(
             canvas,
             text,

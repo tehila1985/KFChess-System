@@ -69,6 +69,7 @@ def _render_frame(
     scores: ScorePanel,
     banner: Banner,
     status_line: str,
+    elapsed_ms: int,
 ) -> Img:
     frame = board_img.copy()
     snapshot = facade.get_snapshot()
@@ -95,7 +96,7 @@ def _render_frame(
             continue
 
         duration = max(1, motion.end_time - motion.start_time)
-        elapsed = facade.current_time - motion.start_time
+        elapsed = elapsed_ms - motion.start_time
         progress = max(0.0, min(1.0, elapsed / duration))
 
         src_px = (motion.src.col * cell_px + 8, motion.src.row * cell_px + 8)
@@ -135,14 +136,16 @@ def run_game() -> None:
         for piece in ("K", "Q", "R", "B", "N", "P"):
             token = f"{color}{piece}"
             src = piece_dir / _token_to_source_file(token)
-            if src.exists():
-                sprite = Img.read(str(src))
-                resized = cv2.resize(sprite.pixels, (84, 84), interpolation=cv2.INTER_AREA)
-                piece_cache[token] = Img(resized)
+            if not src.exists():
+                continue
+            sprite = Img.read(str(src))
+            resized = cv2.resize(sprite.pixels, (84, 84), interpolation=cv2.INTER_AREA)
+            piece_cache[token] = Img(resized)
 
     click_state = {"x": None, "y": None, "clicked": False}
     status_line = "Click a piece, then click destination. Press Q to quit."
     clock = AnimationClock()
+    elapsed_ms = 0
 
     def _on_mouse(event: int, x: int, y: int, _flags: int, _param: object) -> None:
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -169,6 +172,7 @@ def run_game() -> None:
         delta_ms = clock.tick_ms()
         if delta_ms <= 0:
             delta_ms = 16
+        elapsed_ms += delta_ms
         facade.tick(delta_ms)
 
         frame = _render_frame(
@@ -180,6 +184,7 @@ def run_game() -> None:
             scores=scores,
             banner=banner,
             status_line=status_line,
+            elapsed_ms=elapsed_ms,
         )
         key = frame.show(window_title)
         if key in (ord("q"), ord("Q"), 27):
