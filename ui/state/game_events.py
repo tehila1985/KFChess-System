@@ -9,6 +9,9 @@ from engine.models.position import Position
 
 @dataclass(frozen=True)
 class MoveAccepted:
+    side: str
+    piece_type: str
+    at_ms: int
     src: Position
     dst: Position
 

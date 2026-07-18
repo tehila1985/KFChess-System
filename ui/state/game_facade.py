@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from engine.game_engine import GameEngine, MotionSummary, RequestMoveResult
+from engine.models.piece import Piece
 from engine.models.position import Position
 from ui.state.game_events import GameOver, MoveAccepted, MoveRejected, PieceArrived, PieceCaptured
 from ui.state.observer import EventBus, Subject
@@ -47,9 +48,13 @@ class GameFacade:
         return self._engine.get_snapshot()
 
     def request_move(self, src: Position, dst: Position) -> RequestMoveResult:
+        moving_piece = self._engine.get_piece_at(src)
         result = self._engine.request_move(src, dst)
         if result == RequestMoveResult.ACCEPTED:
-            self._subject.publish(MoveAccepted(src=src, dst=dst))
+            side = moving_piece.color if moving_piece is not None else "?"
+            piece_type = moving_piece.type_code if moving_piece is not None else "?"
+            at_ms = self._engine.current_time
+            self._subject.publish(MoveAccepted(side=side, piece_type=piece_type, at_ms=at_ms, src=src, dst=dst))
         else:
             self._subject.publish(MoveRejected(src=src, dst=dst, reason=result))
         return result
@@ -59,28 +64,27 @@ class GameFacade:
 
     def tick(self, delta_ms: int) -> None:
         before = self._freeze_active_motions()
+        before_snapshot = self._engine.get_snapshot()
         self._engine.tick(delta_ms)
         after = self._freeze_active_motions()
 
         completed = before - after
-        snapshot = self._engine.get_snapshot()
         for motion in completed:
             piece = self._engine.get_piece_at(motion.dst)
             if piece is not None and piece.token == motion.token:
                 self._subject.publish(PieceArrived(piece=piece, src=motion.src, dst=motion.dst))
-            else:
-                captured_piece = self._find_piece_by_token(snapshot.grid, motion.token)
-                if captured_piece is None:
-                    # token not present after completion means the moving piece was removed.
-                    continue
 
-            # If something was on destination before completion, engine already accounted for scoring.
-            # We emit capture based on occupancy change at destination.
-            if self._was_capture(before_motion=motion, current_grid=snapshot.grid):
-                captured = self._captured_piece_at_destination(motion.dst, motion.token, snapshot.grid)
-                if captured is not None:
-                    self._subject.publish(PieceCaptured(captured=captured, at=motion.dst))
+            # Capture must be detected from pre-tick destination occupancy.
+            dst_cell_before = before_snapshot.grid[motion.dst.row][motion.dst.col]
+            if dst_cell_before != "." and dst_cell_before[0] != motion.token[0]:
+                self._subject.publish(
+                    PieceCaptured(
+                        captured=Piece(color=dst_cell_before[0], type_code=dst_cell_before[1]),
+                        at=motion.dst,
+                    )
+                )
 
+        snapshot = self._engine.get_snapshot()
         if snapshot.game_over and not self._published_game_over:
             self._published_game_over = True
             self._subject.publish(GameOver(winner=snapshot.winner))
@@ -88,27 +92,3 @@ class GameFacade:
     def _freeze_active_motions(self) -> set[_FrozenMotion]:
         snap = self._engine.get_snapshot()
         return {_FrozenMotion.from_motion(motion) for motion in snap.active_motions}
-
-    @staticmethod
-    def _find_piece_by_token(grid: tuple, token: str):
-        for row in grid:
-            for cell in row:
-                if cell == token:
-                    return None
-        return None
-
-    @staticmethod
-    def _was_capture(before_motion: _FrozenMotion, current_grid: tuple) -> bool:
-        dst = before_motion.dst
-        return current_grid[dst.row][dst.col] != "." and current_grid[dst.row][dst.col] != before_motion.token
-
-    @staticmethod
-    def _captured_piece_at_destination(dst: Position, moving_token: str, grid: tuple):
-        cell = grid[dst.row][dst.col]
-        if cell in (".", moving_token):
-            return None
-        color = cell[0]
-        type_code = cell[1]
-        from engine.models.piece import Piece
-
-        return Piece(color=color, type_code=type_code)

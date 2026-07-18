@@ -42,6 +42,7 @@ class MotionSummary:
     dst:        Position
     start_time: int
     end_time:   int
+    is_jump:    bool = False
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,10 @@ class GameEngine:
             if m.src == pos:
                 return m.piece
         return None
+
+    @property
+    def current_time(self) -> int:
+        return self._arbiter.current_time
 
     def request_move(self, src: Position, dst: Position) -> RequestMoveResult:
         """
@@ -179,7 +184,7 @@ class GameEngine:
                 grid[m.src.row][m.src.col] = m.piece.token
         frozen_grid = tuple(tuple(row) for row in grid)
         motions = tuple(
-            MotionSummary(m.piece, m.src, m.dst, m.start_time, m.end_time)
+            MotionSummary(m.piece, m.src, m.dst, m.start_time, m.end_time, m.is_jump)
             for m in self._arbiter.active_motions
         )
         return GameSnapshot(

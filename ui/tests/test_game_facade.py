@@ -22,6 +22,9 @@ def test_request_move_publishes_move_accepted() -> None:
 
     assert result == RequestMoveResult.ACCEPTED
     assert len(events) == 1
+    assert events[0].side == "w"
+    assert events[0].piece_type == "R"
+    assert events[0].at_ms == 0
     assert events[0].src == Position(0, 0)
     assert events[0].dst == Position(0, 3)
 

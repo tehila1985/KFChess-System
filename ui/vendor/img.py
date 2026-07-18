@@ -74,21 +74,33 @@ class Img:
         scale: float = 1.0,
     ) -> "Img":
         if self._pixels.shape[2] == 4:
-            canvas = np.ascontiguousarray(self._pixels[:, :, :3])
+            canvas = self._pixels[:, :, :3].copy()
+            cv2.putText(
+                canvas,
+                text,
+                (int(x), int(y)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                float(scale),
+                color,
+                2,
+                cv2.LINE_AA,
+            )
             self._pixels[:, :, :3] = canvas
         else:
-            canvas = np.ascontiguousarray(self._pixels)
-            self._pixels[:, :, :3] = canvas[:, :, :3]
-        cv2.putText(
-            canvas,
-            text,
-            (int(x), int(y)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            float(scale),
-            color,
-            2,
-            cv2.LINE_AA,
-        )
+            canvas = self._pixels
+            if not canvas.flags["C_CONTIGUOUS"]:
+                canvas = np.ascontiguousarray(canvas)
+                self._pixels[:, :, :3] = canvas[:, :, :3]
+            cv2.putText(
+                canvas,
+                text,
+                (int(x), int(y)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                float(scale),
+                color,
+                2,
+                cv2.LINE_AA,
+            )
         return self
 
     def show(self, title: str = "Img") -> int:
