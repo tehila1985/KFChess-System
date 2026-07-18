@@ -83,7 +83,7 @@ class TestScenarioRookMove:
         assert snap.grid[0][0] == ".",   "src must remain empty after arrival"
         assert snap.grid[0][3] == "wR",  "wR must be at destination"
         assert len(snap.active_motions) == 0
-        assert snap.scores["w"] == 0,    "no capture — score must be zero"
+        assert dict(snap.scores)["w"] == 0,    "no capture — score must be zero"
         assert snap.game_over is False
 
 
@@ -105,8 +105,8 @@ class TestScenarioCapture:
         engine.tick(3000)   # 3 cells * 1000ms
         snap = engine.get_snapshot()
         assert snap.grid[0][3] == "wR"
-        assert snap.scores["w"] == 5
-        assert snap.scores["b"] == 0
+        assert dict(snap.scores)["w"] == 5
+        assert dict(snap.scores)["b"] == 0
         assert snap.game_over is False
 
 

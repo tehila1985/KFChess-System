@@ -11,8 +11,9 @@ class TextRenderer:
 
     def render(self, snapshot: GameSnapshot) -> str:
         """Full render: board + scores + game state."""
+        scores = dict(snapshot.scores)
         lines = [" ".join(row) for row in snapshot.grid]
-        lines.append(f"Score  w:{snapshot.scores.get('w', 0)}  b:{snapshot.scores.get('b', 0)}")
+        lines.append(f"Score  w:{scores.get('w', 0)}  b:{scores.get('b', 0)}")
         if snapshot.game_over:
             lines.append(f"GAME OVER — winner: {snapshot.winner}")
         else:

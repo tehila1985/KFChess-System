@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from engine.game_engine import RequestMoveResult
-from engine.models.piece import Piece
 from engine.models.position import Position
 
 
@@ -25,14 +24,16 @@ class MoveRejected:
 
 @dataclass(frozen=True)
 class PieceArrived:
-    piece: Piece
+    side: str
+    piece_type: str
     src: Position
     dst: Position
 
 
 @dataclass(frozen=True)
 class PieceCaptured:
-    captured: Piece
+    captured_side: str
+    captured_type: str
     at: Position
 
 

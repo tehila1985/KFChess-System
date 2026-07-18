@@ -104,14 +104,14 @@ class TestCapture:
         eng.request_move(pos(0, 0), pos(0, 2))
         eng.tick(2000)                                   # 2 cells * 1000ms
         snap = eng.get_snapshot()
-        assert snap.scores["w"] == 5
+        assert dict(snap.scores)["w"] == 5
 
     def test_no_score_change_on_empty_arrival(self):
         eng = make_engine(["wR . ."])
         eng.request_move(pos(0, 0), pos(0, 2))
         eng.tick(1000)
         snap = eng.get_snapshot()
-        assert snap.scores["w"] == 0
+        assert dict(snap.scores)["w"] == 0
 
     def test_king_capture_ends_game(self):
         eng = make_engine(["wR . bK"])
@@ -142,7 +142,7 @@ class TestCapture:
         eng.request_move(pos(0, 2), pos(0, 4))
         eng.tick(2000)                                   # 2 cells
         snap = eng.get_snapshot()
-        assert snap.scores["w"] == 8
+        assert dict(snap.scores)["w"] == 8
 
 
 # ── get_snapshot ───────────────────────────────────────────────────────
@@ -161,11 +161,12 @@ class TestGetSnapshot:
         assert isinstance(snap.grid, tuple)
         assert isinstance(snap.grid[0], tuple)
 
-    def test_snapshot_scores_is_copy(self):
+    def test_snapshot_scores_is_read_only(self):
         eng = make_engine(["wR . ."])
         snap = eng.get_snapshot()
-        snap.scores["w"] = 999          # mutating the copy must not affect engine
-        assert eng.get_snapshot().scores["w"] == 0
+        with pytest.raises(Exception):
+            snap.scores[0] = ("w", 999)  # type: ignore[index]
+        assert dict(eng.get_snapshot().scores)["w"] == 0
 
     def test_snapshot_reflects_active_motions(self):
         eng = make_engine(["wR . . ."])

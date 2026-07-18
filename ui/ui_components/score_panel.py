@@ -16,7 +16,7 @@ class ScorePanel:
         self._subscription = subject.subscribe(PieceCaptured, self._on_capture)
 
     def _on_capture(self, event: PieceCaptured) -> None:
-        if event.captured.color == "w":
+        if event.captured_side == "w":
             self.black_captures += 1
         else:
             self.white_captures += 1

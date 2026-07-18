@@ -139,6 +139,7 @@ def _render_frame(
 ) -> Img:
     board_frame = board_img.copy()
     snapshot = facade.get_snapshot()
+    snapshot_scores = dict(snapshot.scores)
     active_motions = list(snapshot.active_motions)
     moving_sources = {motion.src for motion in active_motions}
     cooldown_until_by_pos: dict[tuple[int, int], int] = {
@@ -223,7 +224,7 @@ def _render_frame(
 
     # Left panel: white summary
     scene.put_text("White", 24, 56, color=(255, 255, 255), scale=1.0)
-    scene.put_text(f"Score: {scores.white_captures}", 24, 90, color=(235, 235, 235), scale=0.8)
+    scene.put_text(f"Score: {snapshot_scores.get('w', 0)}", 24, 90, color=(235, 235, 235), scale=0.8)
     scene.put_text("----------------", 24, 122, color=(190, 190, 190), scale=0.5)
     scene.put_text("Moves", 24, 150, color=(235, 235, 235), scale=0.65)
     white_recent = moves.white_entries[-12:]
@@ -235,7 +236,7 @@ def _render_frame(
     # Right panel: black summary + moves feed from Observer subscribers
     right_x = sidebar_w + board_w + 16
     scene.put_text("Black", right_x, 56, color=(255, 255, 255), scale=1.0)
-    scene.put_text(f"Score: {scores.black_captures}", right_x, 90, color=(235, 235, 235), scale=0.8)
+    scene.put_text(f"Score: {snapshot_scores.get('b', 0)}", right_x, 90, color=(235, 235, 235), scale=0.8)
     scene.put_text("----------------", right_x, 122, color=(190, 190, 190), scale=0.5)
     scene.put_text("Moves", right_x, 150, color=(235, 235, 235), scale=0.65)
     black_recent = moves.black_entries[-12:]

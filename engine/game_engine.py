@@ -54,7 +54,7 @@ class GameSnapshot:
     frozen — immutable, safe to pass to the UI layer.
     """
     grid:           tuple   # current grid (including pieces in motion at their src)
-    scores:         dict
+    scores:         tuple
     game_over:      bool
     winner:         Optional[str]
     active_motions: tuple   # MotionSummary of all active motions
@@ -218,7 +218,7 @@ class GameEngine:
         )
         return GameSnapshot(
             grid           = frozen_grid,
-            scores         = dict(self._scores),
+            scores         = tuple(sorted(self._scores.items())),
             game_over      = self._game_over,
             winner         = self._winner,
             active_motions = motions,

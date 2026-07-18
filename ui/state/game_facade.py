@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from engine.game_engine import GameEngine, MotionSummary, RequestMoveResult
-from engine.models.piece import Piece
 from engine.models.position import Position
 from ui.state.game_events import GameOver, MoveAccepted, MoveRejected, PieceArrived, PieceCaptured
 from ui.state.outcome import ActionOutcome
@@ -83,14 +82,22 @@ class GameFacade:
         for motion in completed:
             piece = self._engine.get_piece_at(motion.dst)
             if piece is not None and piece.token == motion.token:
-                self._subject.publish(PieceArrived(piece=piece, src=motion.src, dst=motion.dst))
+                self._subject.publish(
+                    PieceArrived(
+                        side=piece.color,
+                        piece_type=piece.type_code,
+                        src=motion.src,
+                        dst=motion.dst,
+                    )
+                )
 
             # Capture must be detected from pre-tick destination occupancy.
             dst_cell_before = before_snapshot.grid[motion.dst.row][motion.dst.col]
             if dst_cell_before != "." and dst_cell_before[0] != motion.token[0]:
                 self._subject.publish(
                     PieceCaptured(
-                        captured=Piece(color=dst_cell_before[0], type_code=dst_cell_before[1]),
+                        captured_side=dst_cell_before[0],
+                        captured_type=dst_cell_before[1],
                         at=motion.dst,
                     )
                 )

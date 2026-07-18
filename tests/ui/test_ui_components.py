@@ -1,4 +1,3 @@
-from engine.models.piece import Piece
 from engine.models.position import Position
 from ui.state.game_events import GameOver, MoveAccepted, PieceCaptured
 from ui.state.observer import EventBus
@@ -30,8 +29,8 @@ def test_score_panel_counts_captures_by_side() -> None:
     panel = ScorePanel()
     panel.bind(bus)
 
-    bus.publish(PieceCaptured(captured=Piece("w", "P"), at=Position(1, 1)))
-    bus.publish(PieceCaptured(captured=Piece("b", "N"), at=Position(2, 2)))
+    bus.publish(PieceCaptured(captured_side="w", captured_type="P", at=Position(1, 1)))
+    bus.publish(PieceCaptured(captured_side="b", captured_type="N", at=Position(2, 2)))
 
     assert panel.black_captures == 1
     assert panel.white_captures == 1

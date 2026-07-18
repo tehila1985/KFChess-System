@@ -141,7 +141,7 @@ class TestTextRenderer:
         grid  = tuple(tuple(row) for row in board._grid)
         return GameSnapshot(
             grid           = grid,
-            scores         = scores or {"w": 0, "b": 0},
+            scores         = tuple(sorted((scores or {"w": 0, "b": 0}).items())),
             game_over      = game_over,
             winner         = winner,
             active_motions = motions,
