@@ -29,6 +29,7 @@ class RealTimeArbiter:
         self._config       = config
         self._current_time = 0
         self._motions: list[ActiveMotion] = []
+        self._cooldowns: dict[Position, int] = {}
         self._resolver     = resolver or CollisionResolver()
 
     @property
@@ -39,6 +40,14 @@ class RealTimeArbiter:
     def active_motions(self) -> list[ActiveMotion]:
         return list(self._motions)
 
+    @property
+    def cooldowns(self) -> dict[Position, int]:
+        return dict(self._cooldowns)
+
+    def is_on_cooldown(self, pos: Position) -> bool:
+        end_time = self._cooldowns.get(pos)
+        return end_time is not None and end_time > self._current_time
+
     def start_motion(self, piece: Piece, src: Position, dst: Position, duration: int) -> None:
         """
         Starts a new motion.
@@ -48,6 +57,8 @@ class RealTimeArbiter:
         The piece is removed from src immediately (the board shows it as moving).
         """
         if self._route_conflicts(src, dst):
+            return
+        if self.is_on_cooldown(src):
             return
         self._board.set_piece(src, None)
         self._motions.append(ActiveMotion(piece, src, dst, self._current_time, duration, is_jump=False))
@@ -60,11 +71,17 @@ class RealTimeArbiter:
         piece = self._board.get_piece(pos)
         if piece is None:
             return
+        if self.is_on_cooldown(pos):
+            return
         self._motions.append(ActiveMotion(piece, pos, pos, self._current_time, self._config.jump_duration_ms, is_jump=True))
 
     def advance_time(self, delta_ms: int) -> list[CompletedMotion]:
         """Advances the simulation clock and triggers resolution of completed motions."""
         self._current_time += delta_ms
+        self._cooldowns = {
+            pos: end_time for pos, end_time in self._cooldowns.items()
+            if end_time > self._current_time
+        }
         return self._resolve()
 
     def _route_conflicts(self, src: Position, dst: Position) -> bool:
@@ -117,6 +134,7 @@ class RealTimeArbiter:
                 continue
             captured = self._board.get_piece(motion.dst)
             self._board.set_piece(motion.dst, motion.piece)
+            self._cooldowns[motion.dst] = self._current_time + self._config.cooldown_ms
             results.append(CompletedMotion(
                 piece    = motion.piece,
                 src      = motion.src,

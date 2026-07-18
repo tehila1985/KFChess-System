@@ -228,14 +228,14 @@ class TestTiming:
 
     def test_can_move_again_after_arrival_without_cooldown(self, capsys):
         out = run(
-            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 1000\nclick 150 50\nclick 250 50\nwait 1000\nprint board\n",
+            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 1000\nwait 3000\nclick 150 50\nclick 250 50\nwait 1000\nprint board\n",
             capsys,
         )
         assert out == ". . wR"
 
     def test_piece_is_ready_after_arrival_without_cooldown(self, capsys):
         out = run(
-            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 1000\nclick 150 50\nclick 250 50\nwait 1000\nprint board\n",
+            "Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 1000\nwait 3000\nclick 150 50\nclick 250 50\nwait 1000\nprint board\n",
             capsys,
         )
         assert out == ". . wR"
@@ -345,7 +345,7 @@ class TestPawnSpecial:
 
     def test_promoted_queen_moves_diagonal(self, capsys):
         out = run(
-            "Board:\n. . .\n. wP .\n. . .\nCommands:\nclick 150 150\nclick 150 50\nwait 1000\nclick 150 50\nclick 250 150\nwait 1000\nprint board\n",
+            "Board:\n. . .\n. wP .\n. . .\nCommands:\nclick 150 150\nclick 150 50\nwait 1000\nwait 3000\nclick 150 50\nclick 250 150\nwait 1000\nprint board\n",
             capsys,
         )
         assert out == ". . .\n. . wQ\n. . ."

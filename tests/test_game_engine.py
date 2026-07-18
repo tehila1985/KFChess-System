@@ -47,6 +47,14 @@ class TestRequestMove:
         eng.request_move(pos(0, 0), pos(0, 3))          # accepted, now in motion
         assert eng.request_move(pos(0, 0), pos(0, 1)) == RequestMoveResult.PIECE_BUSY
 
+    def test_piece_on_cooldown_rejected_until_timeout(self):
+        eng = make_engine(["wR . ."])
+        eng.request_move(pos(0, 0), pos(0, 1))
+        eng.tick(1000)  # arrival
+        assert eng.request_move(pos(0, 1), pos(0, 2)) == RequestMoveResult.PIECE_ON_COOLDOWN
+        eng.tick(3000)  # cooldown elapsed
+        assert eng.request_move(pos(0, 1), pos(0, 2)) == RequestMoveResult.ACCEPTED
+
     def test_game_over_rejects_all_moves(self):
         eng = make_engine(["wR . bK"])
         eng.request_move(pos(0, 0), pos(0, 2))
@@ -130,6 +138,7 @@ class TestCapture:
         eng = make_engine(["wR . bR . bB"])
         eng.request_move(pos(0, 0), pos(0, 2))
         eng.tick(2000)                                   # 2 cells
+        eng.tick(3000)                                   # cooldown
         eng.request_move(pos(0, 2), pos(0, 4))
         eng.tick(2000)                                   # 2 cells
         snap = eng.get_snapshot()

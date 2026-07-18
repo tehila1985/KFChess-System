@@ -71,6 +71,7 @@ class GameConfig:
         PAWN:   1,
     })
     jump_duration_ms: int = 1000
+    cooldown_ms: int = 3000
 
 
 # Default config — used in GameRunner and tests that don't specify an explicit config

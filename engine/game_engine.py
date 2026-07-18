@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Optional
 
@@ -17,6 +17,7 @@ class RequestMoveResult(Enum):
     ACCEPTED             = auto()  # motion accepted and on its way
     GAME_OVER            = auto()  # game has ended, no moves accepted
     PIECE_BUSY           = auto()  # piece is already in motion
+    PIECE_ON_COOLDOWN    = auto()  # piece is cooling down and cannot move yet
     OUTSIDE_BOARD        = auto()
     EMPTY_SOURCE         = auto()
     FRIENDLY_DESTINATION = auto()
@@ -56,6 +57,7 @@ class GameSnapshot:
     game_over:      bool
     winner:         Optional[str]
     active_motions: tuple   # MotionSummary of all active motions
+    cooldowns:      tuple = field(default_factory=tuple)   # tuple[(Position, end_time_ms)] for cooldown visualization
 
 
 class GameEngine:
@@ -112,6 +114,9 @@ class GameEngine:
 
         if self._is_piece_busy(src):
             return RequestMoveResult.PIECE_BUSY
+
+        if self._arbiter.is_on_cooldown(src):
+            return RequestMoveResult.PIECE_ON_COOLDOWN
 
         status = self._rules.validate_move(self._board, Move(src, dst))
         if status != MoveStatus.OK:
@@ -183,6 +188,7 @@ class GameEngine:
             game_over      = self._game_over,
             winner         = self._winner,
             active_motions = motions,
+            cooldowns      = tuple(self._arbiter.cooldowns.items()),
         )
 
     def _is_piece_busy(self, src: Position) -> bool:
