@@ -3,12 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from engine.game_engine import RequestMoveResult
-from ui.controller import Controller
+from ui.interaction.controller import Controller
 from ui.state.outcome import ActionOutcome
 
 
 @dataclass
 class ControllerOutcomeAdapter:
+    """Adapts controller results to a stable UI outcome object."""
+
     controller: Controller
 
     @property

@@ -11,4 +11,4 @@ class UIConfig:
 
 
 DEFAULT_UI_CONFIG = UIConfig()
-ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"

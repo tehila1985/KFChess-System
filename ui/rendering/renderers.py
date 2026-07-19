@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from engine.config import DEFAULT_CONFIG
+from ui.config.app_config import DEFAULT_APP_CONFIG
 from ui.animation import interpolate_pixel
 from ui.rendering.interfaces import IRenderer, RenderContext
 from ui.vendor.img import Img
@@ -49,7 +50,8 @@ class BoardRenderer(IRenderer):
             (pos.row, pos.col): end_time for pos, end_time in snapshot.cooldowns
         }
 
-        cell_px = 100
+        cell_px = DEFAULT_APP_CONFIG.assets.board_size_px // 8
+        piece_padding = DEFAULT_APP_CONFIG.assets.piece_padding_px
         for row_idx, row in enumerate(snapshot.grid):
             for col_idx, token in enumerate(row):
                 if token == ".":
@@ -62,8 +64,8 @@ class BoardRenderer(IRenderer):
                 sprite = self._pick_frame(token, state, ctx.elapsed_ms)
                 if sprite is None:
                     continue
-                x = col_idx * cell_px + 8
-                y = row_idx * cell_px + 8
+                x = col_idx * cell_px + piece_padding
+                y = row_idx * cell_px + piece_padding
                 sprite.draw_on(board_frame, x, y)
 
                 if ctx.selected_pos == (row_idx, col_idx):
@@ -80,8 +82,8 @@ class BoardRenderer(IRenderer):
                     overlay_part.draw_on(board_frame, x, top_y)
 
         for row_idx, col_idx in ctx.legal_targets:
-            lx = col_idx * cell_px + 8
-            ly = row_idx * cell_px + 8
+            lx = col_idx * cell_px + piece_padding
+            ly = row_idx * cell_px + piece_padding
             self.legal_moves_overlay.draw_on(board_frame, lx, ly)
 
         for motion in active_motions:
@@ -92,15 +94,15 @@ class BoardRenderer(IRenderer):
             duration = max(1, motion.end_time - motion.start_time)
             elapsed = ctx.elapsed_ms - motion.start_time
             progress = max(0.0, min(1.0, elapsed / duration))
-            src_px = (motion.src.col * cell_px + 8, motion.src.row * cell_px + 8)
-            dst_px = (motion.dst.col * cell_px + 8, motion.dst.row * cell_px + 8)
+            src_px = (motion.src.col * cell_px + piece_padding, motion.src.row * cell_px + piece_padding)
+            dst_px = (motion.dst.col * cell_px + piece_padding, motion.dst.row * cell_px + piece_padding)
             x, y = interpolate_pixel(src_px, dst_px, progress)
             sprite.draw_on(board_frame, x, y)
 
         if ctx.selected_pos is not None:
             sr, sc = ctx.selected_pos
-            sx = sc * cell_px + 8
-            sy = sr * cell_px + 8
+            sx = sc * cell_px + piece_padding
+            sy = sr * cell_px + piece_padding
             self.selection_overlay.draw_on(board_frame, sx, sy)
 
         return board_frame

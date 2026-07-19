@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ui.controller import Controller
+from ui.interaction.controller import Controller
 
 
 class MouseController:

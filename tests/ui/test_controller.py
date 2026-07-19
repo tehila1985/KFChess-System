@@ -5,8 +5,8 @@ from engine.rules.rule_engine import RuleEngine
 from engine.arbiter.real_time_arbiter import RealTimeArbiter
 from engine.game_engine import GameEngine
 from engine.config import DEFAULT_CONFIG
-from ui.board_mapper import BoardMapper
-from ui.controller import Controller
+from ui.interaction.board_mapper import BoardMapper
+from ui.interaction.controller import Controller
 
 
 def _build_controller(board_lines: list[str]) -> tuple[Controller, GameEngine]:

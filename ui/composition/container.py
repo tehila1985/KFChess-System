@@ -6,13 +6,13 @@ from engine.arbiter.real_time_arbiter import RealTimeArbiter
 from engine.game_engine import GameEngine
 from engine.models.board import Board
 from engine.rules.rule_engine import RuleEngine
-from ui.board_mapper import BoardMapper
-from ui.controller import Controller
+from ui.interaction.board_mapper import BoardMapper
+from ui.interaction.controller import Controller
 from ui.state.game_facade import GameFacade
 from ui.ui_components.banner import Banner
 from ui.ui_components.moves_feed import MovesFeed
 from ui.ui_components.score_panel import ScorePanel
-from ui.ui_config import DEFAULT_UI_CONFIG
+from ui.config.ui_config import DEFAULT_UI_CONFIG
 
 
 @dataclass(frozen=True)

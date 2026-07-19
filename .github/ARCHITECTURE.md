@@ -26,9 +26,26 @@ chess/
 │   └── arbiter/
 │       └── real_time_arbiter.py         # ניהול תנועות בו-זמניות + התנגשויות
 ├── ui/
-│   ├── board_mapper.py                  # פיקסל → משבצת
-│   ├── controller.py                    # לוגיקת שני-קליקים
-│   └── text_renderer.py                 # GameSnapshot → טקסט
+│   ├── interaction/                     # קלט לוגי ומיפוי קואורדינטות
+│   │   ├── board_mapper.py              # פיקסל → משבצת
+│   │   ├── controller.py                # לוגיקת שני-קליקים
+│   │   └── controller_outcome.py        # התאמת תוצאת Controller ל-ActionOutcome
+│   ├── composition/
+│   │   └── container.py                 # חיווט תלותים לאפליקציית UI
+│   ├── presentation/
+│   │   └── text_renderer.py             # GameSnapshot → טקסט
+│   ├── rendering/                       # שלבי ציור board/HUD
+│   ├── animation/                       # שעון פריימים + אינטרפולציה
+│   ├── ui_components/                   # פאנלים ותתי-רכיבי HUD
+│   ├── state/                           # facade + events + observer
+│   ├── resources/
+│   │   └── asset_loader.py              # טעינה ועיבוד של assets
+│   ├── runtime/
+│   │   └── game_loop.py                 # לולאת runtime של OpenCV
+│   ├── config/
+│   │   ├── app_config.py                # קבועי runtime/layout/messages
+│   │   └── ui_config.py                 # קונפיג UI גלובלי (חלון/skin/layout)
+│   └── main.py                          # Entry point דק לשכבת UI
 └── tests/
     ├── test_runner_scenarios.py         # E2E — מריץ GameRunner עם קלט טקסטואלי
     ├── test_game_engine.py
@@ -154,13 +171,19 @@ active_motions # tuple של MotionSummary
 
 שכבה דקה — לא מכירה כללי שחמט.
 
-| קובץ | תפקיד |
+| מודול | תפקיד |
 |------|--------|
-| `board_mapper.py` | `(x, y)` פיקסל → `Position`. מחזיר None אם מחוץ ללוח |
-| `controller.py` | שני-קליקים: קליק ראשון=בחירה, שני=תנועה. מחליף בחירה לכלי ידידותי |
-| `text_renderer.py` | `GameSnapshot` → מחרוזת טקסט |
+| `interaction/board_mapper.py` | `(x, y)` פיקסל → `Position`. מחזיר None אם מחוץ ללוח |
+| `interaction/controller.py` | שני-קליקים: קליק ראשון=בחירה, שני=תנועה. מחליף בחירה לכלי ידידותי |
+| `interaction/controller_outcome.py` | מנרמל תוצאות click ל-`ActionOutcome` עבור ה-UI loop |
+| `composition/container.py` | בונה `AppContainer` ומחבר Engine/Facade/Components |
+| `presentation/text_renderer.py` | `GameSnapshot` → מחרוזת טקסט |
+| `resources/asset_loader.py` | טעינת sprites/overlays, resize וקונפיג fps לפי state |
+| `runtime/game_loop.py` | לולאת UI בפועל: input, tick, render, status |
+| `config/app_config.py` | קבועי runtime/layout/messages בלי hard-coded בלוגיקה |
+| `config/ui_config.py` | קונפיג UI קבוע משותף לשכבות |
 
-**למה נפרד:** אפשר להחליף ב-GUI renderer בלי לגעת ב-GameEngine.
+**למה נפרד:** מאפשר להחליף renderer או input adapter בלי לגעת ב-GameEngine.
 
 ---
 

@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 
-_SERVER_DIR = Path(__file__).resolve().parent.parent / "server"
+_SERVER_DIR = Path(__file__).resolve().parent.parent.parent / "server"
 
 
 def ensure_server_path() -> None:

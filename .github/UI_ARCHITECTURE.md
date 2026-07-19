@@ -10,22 +10,23 @@ Game rules and authoritative state remain in the engine layer.
 High-level direction:
 - Engine owns game truth: legality, motion, collision, cooldown, score, game-over.
 - UI reads immutable snapshots and renders frames.
-- UI sends user actions back to the engine through a facade/controller boundary.
+- UI sends user actions back to the engine through a mapper/controller/facade boundary.
 - Observer-based components consume UI events for side panels (moves, score, banner).
 
 ## Main Runtime Entry
 
-File: `ui/main.py`
+Files: `ui/main.py`, `ui/runtime/game_loop.py`
 
 Responsibilities:
-- Build the game stack (`Board`, `RuleEngine`, `RealTimeArbiter`, `GameEngine`, `GameFacade`).
-- Configure mapper/controller and UI subscribers (`MovesFeed`, `ScorePanel`, `Banner`).
-- Load visual assets (board, sprites, overlays).
+- `ui/main.py`: thin entry point only.
+- `ui/runtime/game_loop.py`: runtime orchestration and frame loop only.
+- Load visual assets through `ui/resources/asset_loader.py`.
 - Run the non-blocking frame loop:
   - handle click events,
   - advance time (`AnimationClock`),
   - call `facade.tick(delta_ms)`,
-  - render frame and display window.
+  - render frame through `CompositeRenderer`,
+  - display window.
 
 Important render features:
 - Piece animation states (`idle`, `move`, `jump`, rest states).
@@ -34,13 +35,24 @@ Important render features:
 - Cooldown visual overlay.
 - Sidebars with per-side score and moves.
 
+## Composition Root
+
+### `ui/composition/container.py`
+- Defines `AppContainer` with the UI runtime dependencies:
+  - `GameFacade`,
+  - `Controller`,
+  - `BoardMapper`,
+  - sidebar subscribers (`MovesFeed`, `ScorePanel`, `Banner`).
+- `build_container(...)` wires board + engine + facade + UI subscribers.
+- Keeps wiring out of the frame loop.
+
 ## UI Input Pipeline
 
-### `ui/board_mapper.py`
+### `ui/interaction/board_mapper.py`
 - Converts pixel coordinates to board positions.
 - Isolates pixel/grid mapping from the rest of the code.
 
-### `ui/controller.py`
+### `ui/interaction/controller.py`
 - Two-click input model:
   - first click selects source,
   - second click attempts move to destination.
@@ -51,6 +63,13 @@ Important render features:
   - stale source selections are recovered safely.
 - Delegates all legality to engine/facade, no chess rules inside controller.
 
+### `ui/interaction/controller_outcome.py`
+- Normalizes controller result values to `ActionOutcome`.
+- Keeps UI runtime logic independent from raw engine result enums.
+
+### `ui/user_input/mouse_controller.py`
+- Thin adapter that forwards pointer coordinates to controller click handling.
+
 ## State and Event Layer
 
 ### `ui/state/game_facade.py`
@@ -60,6 +79,8 @@ Important render features:
   - `MoveAccepted`, `MoveRejected`,
   - `PieceArrived`, `PieceCaptured`,
   - `GameOver`.
+- Detects completed motions by diffing active motions before/after tick.
+- Detects captures from pre-tick destination occupancy.
 
 ### `ui/state/game_events.py`
 - Dataclasses for event payloads.
@@ -67,6 +88,9 @@ Important render features:
 
 ### `ui/state/observer.py`
 - Subject/event bus abstraction used by UI components.
+
+### `ui/state/outcome.py`
+- Defines `ActionOutcome` used by the UI flow.
 
 ## UI Components
 
@@ -83,24 +107,47 @@ Important render features:
 - Subscribes to game-level events.
 - Displays transient or persistent status/banner messages.
 
-## Animation and Rendering Helpers
+## Animation and Rendering
 
-### `ui/animation.py`
-- Frame-time clock (`tick_ms`).
-- Pixel interpolation for smooth motion rendering.
+### `ui/animation/`
+- `animation_clock.py`: frame-time clock (`tick_ms`).
+- `motion_predictor.py`: pixel interpolation for smooth motion rendering.
+- `piece_animator.py`: animation helpers for piece state transitions.
+
+### `ui/rendering/`
+- `interfaces.py`: renderer protocol and immutable `RenderContext`.
+- `renderers.py`:
+  - `BoardRenderer` draws board, pieces, legal targets, cooldown overlay, active motions.
+  - `HudRenderer` draws side panels, score, moves feed, banner and status line.
+  - `CompositeRenderer` composes rendering pipeline by stage.
+- `dirty.py`: `DirtyState` utility for frame invalidation decisions.
 
 ### `ui/vendor/img.py`
 - Image wrapper over OpenCV operations.
 - Handles alpha-safe text and overlay drawing.
 
+## Asset and Runtime Config
+
+### `ui/resources/asset_loader.py`
+- Dedicated loader for board image, piece frames, overlays and HUD panel background.
+- Centralizes sprite-size preprocessing and per-state fps extraction.
+
+### `ui/config/app_config.py`
+- Holds UI runtime constants/messages used by runtime and render flow.
+- Avoids hard-coded strings and display constants in business/runtime logic.
+
+### `ui/config/ui_config.py`
+- Holds global UI defaults (window title, sidebar width, board cell sizing, skin name).
+- Keeps static UI settings in a single place shared by runtime/composition/resources.
+
 ## Data Flow
 
 1. User clicks in OpenCV window.
-2. `main.py` receives mouse event and forwards to `Controller.on_click(...)`.
-3. Controller uses `BoardMapper` and delegates move requests via facade.
-4. Engine accepts/rejects request and updates motion state.
-5. Per frame, `facade.tick(dt)` advances simulation.
-6. `main.py` reads `facade.get_snapshot()` and renders board/pieces/overlays.
+2. `main.py` receives mouse event and forwards through `ControllerOutcomeAdapter`.
+3. Controller uses `BoardMapper` and delegates move requests via `GameFacade`.
+4. Facade delegates to engine and publishes accepted/rejected move events.
+5. Per frame, `facade.tick(dt)` advances simulation and publishes arrival/capture/game-over events.
+6. `CompositeRenderer` executes board stage then HUD stage using `RenderContext`.
 7. Observer subscribers update sidebars from published events.
 
 ## Boundaries and Invariants
@@ -109,7 +156,8 @@ Important render features:
 - Engine remains single source of truth.
 - Rule legality always evaluated in `RuleEngine`.
 - Controller remains stateless with respect to chess rules.
-- Rendering is driven by immutable snapshot objects.
+- Rendering is driven by immutable snapshots plus render context.
+- Dependency wiring lives in `ui/composition/container.py`, not in rendering or controller code.
 
 ## Test Structure
 

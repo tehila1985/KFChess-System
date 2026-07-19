@@ -13,9 +13,9 @@ from engine.models.position import Position
 from engine.rules.rule_engine import RuleEngine
 from engine.arbiter.real_time_arbiter import RealTimeArbiter
 from engine.game_engine import GameEngine, RequestMoveResult
-from ui.board_mapper import BoardMapper
-from ui.controller import Controller
-from ui.text_renderer import TextRenderer
+from ui.interaction.board_mapper import BoardMapper
+from ui.interaction.controller import Controller
+from ui.presentation.text_renderer import TextRenderer
 
 
 # ── shared wiring helper ───────────────────────────────────────────────

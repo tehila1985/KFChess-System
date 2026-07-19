@@ -1,5 +1,5 @@
 from engine.game_engine import RequestMoveResult
-from ui.controller_outcome import ControllerOutcomeAdapter
+from ui.interaction.controller_outcome import ControllerOutcomeAdapter
 from ui.state.outcome import ActionOutcome
 
 
