@@ -19,6 +19,8 @@ class ControllerOutcomeAdapter:
         result = self.controller.on_click(x, y)
         if result is None:
             return None
+        if isinstance(result, ActionOutcome):
+            return result
         if result == RequestMoveResult.ACCEPTED:
             return ActionOutcome.ok()
         return ActionOutcome.fail(result)

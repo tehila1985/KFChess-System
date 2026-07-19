@@ -26,3 +26,9 @@ def test_adapter_maps_accept_to_success_outcome() -> None:
 def test_adapter_maps_failure_to_failed_outcome() -> None:
     adapter = ControllerOutcomeAdapter(_ControllerStub(RequestMoveResult.ILLEGAL_PIECE_MOVE))
     assert adapter.on_click(1, 2) == ActionOutcome.fail(RequestMoveResult.ILLEGAL_PIECE_MOVE)
+
+
+def test_adapter_passes_through_action_outcome() -> None:
+    expected = ActionOutcome.fail(RequestMoveResult.PIECE_ON_COOLDOWN)
+    adapter = ControllerOutcomeAdapter(_ControllerStub(expected))
+    assert adapter.on_click(1, 2) == expected
