@@ -24,6 +24,7 @@ class UiStatusTextConfig:
     idle_prompt: str = "Click a piece, then click destination. Press Q to quit."
     accepted: str = "Move accepted"
     cooldown: str = "Piece is cooling down - wait a moment."
+    jump_requested: str = "Jump requested"
     fallback_prefix: str = "Move result"
 
 

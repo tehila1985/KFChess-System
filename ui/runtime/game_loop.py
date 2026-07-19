@@ -23,6 +23,41 @@ DEFAULT_BOARD_LINES = [
     "wR wN wB wQ wK wB wN wR",
 ]
 
+LEFT_ACTION = "move"
+RIGHT_ACTION = "jump"
+
+
+def _process_pointer_action(
+    *,
+    action: str,
+    x: int,
+    y: int,
+    sidebar_width: int,
+    mapper,
+    facade,
+    ui_controller,
+    current_status: str,
+) -> str:
+    """Routes pointer action to move or jump flow and returns next status line."""
+    board_x = x - sidebar_width
+
+    if action == RIGHT_ACTION:
+        pos = mapper.to_position(board_x, y)
+        if pos is None:
+            return current_status
+        facade.request_jump(pos)
+        return DEFAULT_APP_CONFIG.status.jump_requested
+
+    result = ui_controller.on_click(board_x, y)
+    if result is None:
+        return current_status
+    if result.success:
+        return DEFAULT_APP_CONFIG.status.accepted
+    if result.reason is not None and result.reason.name == "PIECE_ON_COOLDOWN":
+        return DEFAULT_APP_CONFIG.status.cooldown
+    reason = result.reason.name if result.reason is not None else "UNKNOWN"
+    return f"{DEFAULT_APP_CONFIG.status.fallback_prefix}: {reason}"
+
 
 def run_game(board_lines: list[str] | None = None) -> None:
     lines = board_lines or DEFAULT_BOARD_LINES
@@ -34,7 +69,7 @@ def run_game(board_lines: list[str] | None = None) -> None:
     assets = load_ui_assets(DEFAULT_APP_CONFIG)
 
     status_line = DEFAULT_APP_CONFIG.status.idle_prompt
-    click_state = {"x": None, "y": None, "clicked": False}
+    click_state = {"x": None, "y": None, "clicked": False, "action": LEFT_ACTION}
 
     clock = AnimationClock()
     elapsed_ms = 0
@@ -45,6 +80,12 @@ def run_game(board_lines: list[str] | None = None) -> None:
             click_state["x"] = x
             click_state["y"] = y
             click_state["clicked"] = True
+            click_state["action"] = LEFT_ACTION
+        elif event == cv2.EVENT_RBUTTONDOWN:
+            click_state["x"] = x
+            click_state["y"] = y
+            click_state["clicked"] = True
+            click_state["action"] = RIGHT_ACTION
 
     window_title = DEFAULT_UI_CONFIG.window_title
     cv2.namedWindow(window_title)
@@ -78,18 +119,19 @@ def run_game(board_lines: list[str] | None = None) -> None:
         if click_state["clicked"]:
             x = int(click_state["x"])
             y = int(click_state["y"])
+            action = str(click_state["action"])
             click_state["clicked"] = False
-            local_x = x - DEFAULT_UI_CONFIG.sidebar_width_px
-            result = ui_controller.on_click(local_x, y)
-            if result is not None:
-                ui_dirty.mark_dirty()
-                if result.success:
-                    status_line = DEFAULT_APP_CONFIG.status.accepted
-                elif result.reason is not None and result.reason.name == "PIECE_ON_COOLDOWN":
-                    status_line = DEFAULT_APP_CONFIG.status.cooldown
-                else:
-                    reason = result.reason.name if result.reason is not None else "UNKNOWN"
-                    status_line = f"{DEFAULT_APP_CONFIG.status.fallback_prefix}: {reason}"
+            status_line = _process_pointer_action(
+                action=action,
+                x=x,
+                y=y,
+                sidebar_width=DEFAULT_UI_CONFIG.sidebar_width_px,
+                mapper=container.mapper,
+                facade=facade,
+                ui_controller=ui_controller,
+                current_status=status_line,
+            )
+            ui_dirty.mark_dirty()
 
         delta_ms = clock.tick_ms()
         if delta_ms <= 0:

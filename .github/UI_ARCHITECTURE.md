@@ -22,7 +22,9 @@ Responsibilities:
 - `ui/runtime/game_loop.py`: runtime orchestration and frame loop only.
 - Load visual assets through `ui/resources/asset_loader.py`.
 - Run the non-blocking frame loop:
-  - handle click events,
+  - handle pointer events,
+  - left click routes through `ControllerOutcomeAdapter` for select/move,
+  - right click maps to board position and triggers `facade.request_jump(...)`,
   - advance time (`AnimationClock`),
   - call `facade.tick(delta_ms)`,
   - render frame through `CompositeRenderer`,
@@ -62,6 +64,7 @@ Important render features:
   - frozen/cooldown piece selection can be ignored,
   - stale source selections are recovered safely.
 - Delegates all legality to engine/facade, no chess rules inside controller.
+- Jump is intentionally not part of controller state-machine and is handled as a runtime action.
 
 ### `ui/interaction/controller_outcome.py`
 - Normalizes controller result values to `ActionOutcome`.
@@ -143,9 +146,9 @@ Important render features:
 ## Data Flow
 
 1. User clicks in OpenCV window.
-2. `main.py` receives mouse event and forwards through `ControllerOutcomeAdapter`.
-3. Controller uses `BoardMapper` and delegates move requests via `GameFacade`.
-4. Facade delegates to engine and publishes accepted/rejected move events.
+2. `main.py` forwards pointer events to `ui/runtime/game_loop.py`.
+3. Left click path: `ControllerOutcomeAdapter` -> controller -> `GameFacade.request_move(...)`.
+4. Right click path: mapper -> `GameFacade.request_jump(...)`.
 5. Per frame, `facade.tick(dt)` advances simulation and publishes arrival/capture/game-over events.
 6. `CompositeRenderer` executes board stage then HUD stage using `RenderContext`.
 7. Observer subscribers update sidebars from published events.
