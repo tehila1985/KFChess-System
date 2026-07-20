@@ -51,41 +51,28 @@ def run_game(board_lines: list[str] | None = None) -> None:
     lines = board_lines or list(DEFAULT_APP_CONFIG.board.default_lines)
     container = build_container(lines)
     facade = container.facade
-    ui_controller = ControllerOutcomeAdapter(container.controller)
+    controller = container.controller
+    ui_controller = ControllerOutcomeAdapter(controller)
 
     assets = load_ui_assets(DEFAULT_APP_CONFIG)
 
     status_line = DEFAULT_APP_CONFIG.status.idle_prompt
-
-    # Click state: written by the mouse callback, consumed once per frame.
-    click_state: dict[str, object] = {
-        "x": None,
-        "y": None,
-        "clicked": False,
-        "action": LEFT_ACTION,
-    }
+    click_state = {"x": None, "y": None, "clicked": False, "action": LEFT_ACTION}
 
     clock = AnimationClock()
     elapsed_ms = 0
-
-    # Cache legal destinations — recomputed only when the selected square
-    # changes, not on every frame.  get_legal_destinations runs 63 rule
-    # validations which is expensive at 60 fps.
-    _SENTINEL = object()
-    _cached_pending: object = _SENTINEL
-    _cached_legal_targets: tuple[tuple[int, int], ...] = ()
 
     def _on_mouse(event: int, x: int, y: int, _flags: int, _param: object) -> None:
         if event == cv2.EVENT_LBUTTONDOWN:
             click_state["x"] = x
             click_state["y"] = y
-            click_state["action"] = LEFT_ACTION
             click_state["clicked"] = True
+            click_state["action"] = LEFT_ACTION
         elif event == cv2.EVENT_RBUTTONDOWN:
             click_state["x"] = x
             click_state["y"] = y
-            click_state["action"] = RIGHT_ACTION
             click_state["clicked"] = True
+            click_state["action"] = RIGHT_ACTION
 
     window_title = DEFAULT_APP_CONFIG.runtime.window_title
     cv2.namedWindow(window_title)
@@ -116,12 +103,12 @@ def run_game(board_lines: list[str] | None = None) -> None:
     )
 
     while True:
-        # --- Input handling ------------------------------------------------
+        # --- Input ---
         if click_state["clicked"]:
-            x = int(click_state["x"])           # type: ignore[arg-type]
-            y = int(click_state["y"])           # type: ignore[arg-type]
+            x = int(click_state["x"])
+            y = int(click_state["y"])
             action = str(click_state["action"])
-            click_state["clicked"] = False      # clear immediately after snapshot
+            click_state["clicked"] = False
             status_line = _process_pointer_action(
                 action=action,
                 x=x,
@@ -133,36 +120,29 @@ def run_game(board_lines: list[str] | None = None) -> None:
                 current_status=status_line,
             )
 
-        # --- Simulation tick -----------------------------------------------
+        # --- Tick ---
         delta_ms = clock.tick_ms()
         if delta_ms <= 0:
             delta_ms = DEFAULT_APP_CONFIG.runtime.fallback_frame_ms
         elapsed_ms += delta_ms
         facade.tick(delta_ms)
 
-        # --- Render every frame --------------------------------------------
-        # Piece animation, cooldown bars, and sprite cycling all change
-        # continuously — rendering every frame is the correct approach here.
-        pending = ui_controller.pending_src
+        # --- Render ---
         selected_pos = (
-            (pending.row, pending.col) if pending is not None else None
+            (controller.pending_src.row, controller.pending_src.col)
+            if controller.pending_src is not None
+            else None
         )
-
-        # Recompute legal destinations only when the selected piece changes.
-        # Running 63 rule-validations per frame at 60 fps is expensive.
-        if pending is not _cached_pending:
-            _cached_pending = pending
-            _cached_legal_targets = (
-                tuple((p.row, p.col) for p in facade.get_legal_destinations(pending))
-                if pending is not None
-                else ()
-            )
-
         ctx = RenderContext(
             elapsed_ms=elapsed_ms,
             status_line=status_line,
             selected_pos=selected_pos,
-            legal_targets=_cached_legal_targets,
+            legal_targets=tuple(
+                (p.row, p.col)
+                for p in facade.get_legal_destinations(controller.pending_src)
+            )
+            if controller.pending_src is not None
+            else (),
         )
 
         frame = renderer.draw(assets.board_img.copy(), ctx)
