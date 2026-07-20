@@ -54,7 +54,7 @@ class GameConfig:
     - tests with different values (e.g. high speed) without changing global constants
     - future flexibility to pass different settings per game
     """
-    move_duration_ms: dict = field(default_factory=lambda: {
+    move_duration_ms: dict[str, int] = field(default_factory=lambda: {
         KING:   1000,
         QUEEN:  1000,
         ROOK:   1000,
@@ -62,8 +62,8 @@ class GameConfig:
         KNIGHT: 1500,
         PAWN:    500,
     })
-    piece_score: dict = field(default_factory=lambda: {
-        KING:   float('inf'),
+    piece_score: dict[str, int] = field(default_factory=lambda: {
+        KING:   0,
         QUEEN:  9,
         ROOK:   5,
         BISHOP: 3,
