@@ -1,12 +1,13 @@
-from server.game_engine import RequestMoveResult
-from server.models.board import Board
-from server.models.position import Position
-from server.rules.rule_engine import RuleEngine
-from server.arbiter.real_time_arbiter import RealTimeArbiter
-from server.game_engine import GameEngine
-from server.config import DEFAULT_CONFIG
+from engine.game_engine import RequestMoveResult
+from engine.models.board import Board
+from engine.models.position import Position
+from engine.rules.rule_engine import RuleEngine
+from engine.arbiter.real_time_arbiter import RealTimeArbiter
+from engine.game_engine import GameEngine
+from engine.config import DEFAULT_CONFIG
 from ui.interaction.board_mapper import BoardMapper
-from ui.interaction.controller import Controller
+from ui.interaction.controller import Controller, ControllerOutcomeAdapter
+from ui.state.outcome import ActionOutcome
 
 
 def _build_controller(board_lines: list[str]) -> tuple[Controller, GameEngine]:
@@ -14,6 +15,16 @@ def _build_controller(board_lines: list[str]) -> tuple[Controller, GameEngine]:
     engine = GameEngine(board, RuleEngine(), RealTimeArbiter(board))
     mapper = BoardMapper(cell_size=100, rows=len(board_lines), cols=len(board_lines[0].split()))
     return Controller(engine, mapper), engine
+
+
+class _ControllerStub:
+    def __init__(self, result):
+        self._result = result
+        self.pending_src = None
+
+    def on_click(self, x: int, y: int):
+        _ = (x, y)
+        return self._result
 
 
 def test_first_click_on_empty_cell_does_not_select_source() -> None:
@@ -80,3 +91,28 @@ def test_click_on_frozen_piece_does_not_store_pending_move() -> None:
     assert controller.on_click(150, 50) is None
     assert controller.on_click(250, 50) is None
     assert controller.on_click(50, 50) == RequestMoveResult.ACCEPTED
+
+
+def test_outcome_adapter_returns_none_when_controller_returns_none() -> None:
+    """Verify outcome adapter returns none when controller returns none."""
+    adapter = ControllerOutcomeAdapter(_ControllerStub(None))
+    assert adapter.on_click(1, 2) is None
+
+
+def test_outcome_adapter_maps_accept_to_success_outcome() -> None:
+    """Verify outcome adapter maps accept to success outcome."""
+    adapter = ControllerOutcomeAdapter(_ControllerStub(RequestMoveResult.ACCEPTED))
+    assert adapter.on_click(1, 2) == ActionOutcome.ok()
+
+
+def test_outcome_adapter_maps_failure_to_failed_outcome() -> None:
+    """Verify outcome adapter maps failure to failed outcome."""
+    adapter = ControllerOutcomeAdapter(_ControllerStub(RequestMoveResult.ILLEGAL_PIECE_MOVE))
+    assert adapter.on_click(1, 2) == ActionOutcome.fail(RequestMoveResult.ILLEGAL_PIECE_MOVE)
+
+
+def test_outcome_adapter_passes_through_action_outcome() -> None:
+    """Verify outcome adapter passes through action outcome."""
+    expected = ActionOutcome.fail(RequestMoveResult.PIECE_ON_COOLDOWN)
+    adapter = ControllerOutcomeAdapter(_ControllerStub(expected))
+    assert adapter.on_click(1, 2) == expected

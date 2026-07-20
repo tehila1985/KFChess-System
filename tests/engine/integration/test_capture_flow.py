@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from server.arbiter.real_time_arbiter import RealTimeArbiter
-from server.config import WHITE
-from server.game_engine import GameEngine, RequestMoveResult
-from server.models.board import Board
-from server.models.position import Position
-from server.rules.rule_engine import RuleEngine
+from engine.arbiter.real_time_arbiter import RealTimeArbiter
+from engine.config import WHITE
+from engine.game_engine import GameEngine, RequestMoveResult
+from engine.models.board import Board
+from engine.models.position import Position
+from engine.rules.rule_engine import RuleEngine
 from ui.interaction.board_mapper import BoardMapper
 from ui.interaction.controller import Controller
 

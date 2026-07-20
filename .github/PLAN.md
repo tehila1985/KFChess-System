@@ -9,7 +9,7 @@ along the way).
 
 ## Context and constraints
 
-- `server/` (the real-time chess engine) was already complete before this
+- `engine/` (the real-time chess engine) was already complete before this
   work started. `ui/` began as an empty folder with a placeholder README.
 - Course rule: **all graphics must go through the provided `Img` class**
   (vendored at `ui/vendor/img.py`) — no PyGame/SFML/LWJGL. `Img` itself only
@@ -24,7 +24,7 @@ along the way).
 
 ```
 ui/
-  server_bridge.py       # inserts server/ onto sys.path — imported first, before any model/engine import
+  server_bridge.py       # inserts engine/ onto sys.path — imported first, before any model/engine import
   main.py                 # entrypoint: builds the facade/controller/renderer, runs the loop
   ui_config.py             # UI-only constants (window title, sidebar width, skin name)
 
@@ -54,8 +54,8 @@ ui/
 
   user_input/
     mouse_controller.py        # cv2 mouse-callback adapter -> server's Controller.click(x, y)
-    (named user_input/, not input/ — server/input/ already exists, and since
-    server/ sits ahead of ui/ on sys.path, ui/input/ would have been silently
+    (named user_input/, not input/ — engine/input/ already exists, and since
+    engine/ sits ahead of ui/ on sys.path, ui/input/ would have been silently
     unreachable under the shared package name)
 
   state/
@@ -75,7 +75,7 @@ ui/
     halt_flash.py
 
   tests/
-    conftest.py                # puts server/ on sys.path for pytest, same as server_bridge.py does
+    conftest.py                # puts engine/ on sys.path for pytest, same as server_bridge.py does
     unit/test_*.py              # 57 tests covering every pure-logic module above
 ```
 
@@ -161,7 +161,7 @@ scripted clicks) before moving to the next.
 
 ## Design decisions worth knowing
 
-- **Observer lives in `ui/`, not in `server/`.** `server/` was already fully
+- **Observer lives in `ui/`, not in `engine/`.** `engine/` was already fully
   tested with a clean-architecture goal, and the UI is already the sole
   caller of `engine.wait()`, making it the natural place to inspect what
   changed immediately after each call — zero server changes needed.
@@ -181,11 +181,11 @@ scripted clicks) before moving to the next.
   FrozenSnapshot` copies every token out up front to fix this; it's the
   reconciliation logic's dependency, not a general-purpose replacement for
   `GameSnapshot`.
-- **Two package-name collisions with `server/`, both fixed:** `ui/input/`
-  would have collided with `server/input/` (server sits ahead of `ui/` on
+- **Two package-name collisions with `engine/`, both fixed:** `ui/input/`
+  would have collided with `engine/input/` (engine sits ahead of `ui/` on
   `sys.path`, so the ui-side module would have been silently unreachable) —
   renamed to `ui/user_input/`. `ui/config.py` would have collided with
-  `server/config.py` — named `ui_config.py` instead.
+  `engine/config.py` — named `ui_config.py` instead.
 - **On-screen extras (selection highlight, halt flash) are pre-baked PNG
   overlays drawn via `Img.draw_on`,** not raw `cv2.rectangle` calls — keeping
   every visible pixel drawn through `Img`, per the course rule, even for
@@ -197,8 +197,8 @@ scripted clicks) before moving to the next.
   existed once (`820a921`) and was deliberately removed (`be5f1b8`) because
   it failed the course's official grading suite at the time. It was
   restored anyway, as an explicit, informed decision — see
-  `server/config.py` (`COOLDOWN_MS`), `server/realtime/real_time_arbiter.py`
-  (`start_cooldown`/`is_on_cooldown`), and `server/game_engine.py`.
+  `engine/config.py` (`COOLDOWN_MS`), `engine/realtime/real_time_arbiter.py`
+  (`start_cooldown`/`is_on_cooldown`), and `engine/game_engine.py`.
   Needed zero changes on the `ui/` side — `GameFacade`/`Controller` already
   treat a cooldown rejection like any other illegal move.
 - **The `pieces3` custom-art skin** — see "Skins" above.

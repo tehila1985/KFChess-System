@@ -2,8 +2,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from server.models.piece import Piece
-from server.models.position import Position
+from engine.models.piece import Piece
+from engine.models.position import Position
 
 
 @dataclass(frozen=True)

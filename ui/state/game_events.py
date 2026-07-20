@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from server.game_engine import RequestMoveResult
-from server.models.position import Position
+from engine.game_engine import RequestMoveResult
+from engine.models.position import Position
 
 
 @dataclass(frozen=True)

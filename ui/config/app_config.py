@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
 class UiAssetsConfig:
+    assets_dir: Path = Path(__file__).resolve().parent.parent / "assets"
     board_size_px: int = 800
     piece_size_px: int = 84
     piece_padding_px: int = 8
@@ -59,6 +61,7 @@ class UiInputConfig:
 
 @dataclass(frozen=True)
 class UiBoardConfig:
+    cell_size_px: int = 100
     default_lines: tuple[str, ...] = (
         "bR bN bB bQ bK bB bN bR",
         "bP bP bP bP bP bP bP bP",
@@ -88,7 +91,13 @@ class UiStatusTextConfig:
 
 @dataclass(frozen=True)
 class UiRuntimeConfig:
+    window_title: str = "Kung-Fu Chess"
     fallback_frame_ms: int = 16
+
+
+@dataclass(frozen=True)
+class UiThemeConfig:
+    skin_name: str = "pieces4"
 
 
 @dataclass(frozen=True)
@@ -101,6 +110,7 @@ class AppConfig:
     layout: UiLayoutConfig = UiLayoutConfig()
     status: UiStatusTextConfig = UiStatusTextConfig()
     runtime: UiRuntimeConfig = UiRuntimeConfig()
+    theme: UiThemeConfig = UiThemeConfig()
 
 
 DEFAULT_APP_CONFIG = AppConfig()

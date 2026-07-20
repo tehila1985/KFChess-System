@@ -1,7 +1,6 @@
 from ui.rendering.interfaces import IRenderer, RenderContext
-from ui.rendering.renderers import BoardRenderer, HudRenderer, CompositeRenderer
+from ui.rendering.renderers import BoardRenderer, HudRenderer, CompositeRenderer, TextRenderer
 from ui.rendering.dirty import DirtyState
-from ui.rendering.text_renderer import TextRenderer
 
 __all__ = [
     "IRenderer",

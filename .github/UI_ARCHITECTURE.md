@@ -15,7 +15,7 @@ The UI must remain a presentation layer only. It may interpret user events and r
 
 ## High-Level Boundaries
 
-- `server/` owns game truth: move legality, motion timing, collision resolution, score, game-over, and king capture handling.
+- `engine/` owns game truth: move legality, motion timing, collision resolution, score, game-over, and king capture handling.
 - `ui/` owns the OpenCV window, interaction adapters, event subscribers, and frame rendering.
 - `ui/state/game_facade.py` is the only UI-facing boundary that touches `GameEngine` directly.
 - `ui/composition/container.py` is the wiring root for the UI runtime.
@@ -229,7 +229,7 @@ Unit-style UI tests for isolated adapters and components:
 UI integration tests that exercise the runtime pointer-routing path:
 - `test_runtime_jump.py`.
 
-### `tests/SERVER/unit/`
+### `tests/engine/unit/`
 Server-side unit tests for isolated logic:
 - arbiter behavior,
 - engine request/tick/snapshot behavior,
@@ -237,7 +237,7 @@ Server-side unit tests for isolated logic:
 - rule engine behavior,
 - capture and scoring logic.
 
-### `tests/SERVER/integration/`
+### `tests/engine/integration/`
 Server integration and end-to-end scenario tests:
 - full engine/controller/rendering scenarios,
 - command-runner scenarios,
@@ -246,8 +246,8 @@ Server integration and end-to-end scenario tests:
 This split lets you run focused suites:
 - `pytest tests/UI/unit -q`
 - `pytest tests/UI/integration -q`
-- `pytest tests/SERVER/unit -q`
-- `pytest tests/SERVER/integration -q`
+- `pytest tests/engine/unit -q`
+- `pytest tests/engine/integration -q`
 
 ## Notes for Future Changes
 

@@ -2,10 +2,10 @@ from __future__ import annotations
 from enum import Enum, auto
 from abc import ABC, abstractmethod
 
-from server.models.board import Board
-from server.models.move import Move
-from server.models.position import Position
-from server.config import WHITE, WHITE_DIRECTION, BLACK_DIRECTION
+from engine.models.board import Board
+from engine.models.move import Move
+from engine.models.position import Position
+from engine.config import WHITE, WHITE_DIRECTION, BLACK_DIRECTION
 
 
 class MoveStatus(Enum):

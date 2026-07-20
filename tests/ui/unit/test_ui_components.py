@@ -1,14 +1,14 @@
-from server.models.position import Position
+from engine.models.position import Position
 from ui.state.game_events import GameOver, MoveAccepted, PieceCaptured
 from ui.state.observer import EventBus
 from ui.ui_components.banner import Banner
 from ui.ui_components.moves_feed import MovesFeed
 from ui.ui_components.score_panel import ScorePanel
 from ui.state.game_facade import GameFacade
-from server.models.board import Board
-from server.arbiter.real_time_arbiter import RealTimeArbiter
-from server.game_engine import GameEngine, RequestMoveResult
-from server.rules.rule_engine import RuleEngine
+from engine.models.board import Board
+from engine.arbiter.real_time_arbiter import RealTimeArbiter
+from engine.game_engine import GameEngine, RequestMoveResult
+from engine.rules.rule_engine import RuleEngine
 from ui.state.outcome import ActionOutcome
 
 

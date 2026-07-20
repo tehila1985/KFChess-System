@@ -8,7 +8,6 @@ import cv2
 import numpy as np
 
 from ui.config.app_config import DEFAULT_APP_CONFIG, AppConfig
-from ui.config.ui_config import ASSETS_DIR, DEFAULT_UI_CONFIG
 from ui.vendor.img import Img
 
 
@@ -44,7 +43,7 @@ def load_ui_assets(app_config: AppConfig) -> LoadedUiAssets:
 
 def _load_board_image(app_config: AppConfig) -> Img:
     board_size = app_config.assets.board_size_px
-    board_img = Img.read(str(ASSETS_DIR / "board.png"))
+    board_img = Img.read(str(app_config.assets.assets_dir / "board.png"))
     resized = cv2.resize(board_img.pixels, (board_size, board_size), interpolation=cv2.INTER_AREA)
     return Img(resized)
 
@@ -85,13 +84,13 @@ def _build_legal_moves_overlay(app_config: AppConfig) -> Img:
 
 def _load_cooldown_overlay(app_config: AppConfig) -> Img:
     piece_size = app_config.assets.piece_size_px
-    cooldown_img = Img.read(str(ASSETS_DIR / "cooldown_fade" / app_config.assets.cooldown_overlay_frame_name))
+    cooldown_img = Img.read(str(app_config.assets.assets_dir / "cooldown_fade" / app_config.assets.cooldown_overlay_frame_name))
     resized = cv2.resize(cooldown_img.pixels, (piece_size, piece_size), interpolation=cv2.INTER_AREA)
     return Img(resized)
 
 
 def _load_piece_frames(app_config: AppConfig) -> tuple[dict[str, dict[str, list[Img]]], dict[str, dict[str, int]]]:
-    piece_root = _resolve_piece_root(DEFAULT_UI_CONFIG.skin_name)
+    piece_root = _resolve_piece_root(app_config.theme.skin_name, app_config.assets.assets_dir)
     piece_size = app_config.assets.piece_size_px
     piece_config = app_config.pieces
 
@@ -130,9 +129,9 @@ def _load_piece_frames(app_config: AppConfig) -> tuple[dict[str, dict[str, list[
     return frames_by_token, fps_by_token
 
 
-def _resolve_piece_root(skin_name: str) -> Path:
+def _resolve_piece_root(skin_name: str, assets_dir: Path) -> Path:
     """Resolve assets root for piece sheets with backward-compatible fallbacks."""
-    direct_root = ASSETS_DIR / skin_name
+    direct_root = assets_dir / skin_name
     nested_root = direct_root / skin_name
 
     if nested_root.exists():
@@ -141,7 +140,7 @@ def _resolve_piece_root(skin_name: str) -> Path:
         return direct_root
 
     # Last resort: prefer pieces4 when configured skin is missing.
-    fallback_direct = ASSETS_DIR / "pieces4"
+    fallback_direct = assets_dir / "pieces4"
     fallback_nested = fallback_direct / "pieces4"
     if fallback_nested.exists():
         return fallback_nested

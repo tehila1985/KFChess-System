@@ -2,17 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from server.arbiter.real_time_arbiter import RealTimeArbiter
-from server.game_engine import GameEngine
-from server.models.board import Board
-from server.rules.rule_engine import RuleEngine
+from engine.arbiter.real_time_arbiter import RealTimeArbiter
+from engine.game_engine import GameEngine
+from engine.models.board import Board
+from engine.rules.rule_engine import RuleEngine
 from ui.interaction.board_mapper import BoardMapper
 from ui.interaction.controller import Controller
 from ui.state.game_facade import GameFacade
 from ui.ui_components.banner import Banner
 from ui.ui_components.moves_feed import MovesFeed
 from ui.ui_components.score_panel import ScorePanel
-from ui.config.ui_config import DEFAULT_UI_CONFIG
+from ui.config.app_config import DEFAULT_APP_CONFIG
 
 
 @dataclass(frozen=True)
@@ -31,7 +31,7 @@ def build_container(board_lines: list[str]) -> AppContainer:
     facade = GameFacade(engine)
 
     mapper = BoardMapper(
-        cell_size=DEFAULT_UI_CONFIG.board_cell_px,
+        cell_size=DEFAULT_APP_CONFIG.board.cell_size_px,
         rows=len(board_lines),
         cols=len(board_lines[0].split()),
     )

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from server.arbiter.real_time_arbiter import RealTimeArbiter
-from server.config import BLACK, DEFAULT_CONFIG, WHITE
-from server.game_engine import GameEngine, RequestMoveResult
-from server.models.board import Board
-from server.models.piece import Piece
-from server.models.position import Position
-from server.rules.rule_engine import RuleEngine
+from engine.arbiter.real_time_arbiter import RealTimeArbiter
+from engine.config import BLACK, DEFAULT_CONFIG, WHITE
+from engine.game_engine import GameEngine, RequestMoveResult
+from engine.models.board import Board
+from engine.models.piece import Piece
+from engine.models.position import Position
+from engine.rules.rule_engine import RuleEngine
 
 
 def pos(row: int, col: int) -> Position:

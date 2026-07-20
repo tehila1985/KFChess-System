@@ -5,8 +5,7 @@ import cv2
 from ui.animation import AnimationClock
 from ui.composition.container import build_container
 from ui.config.app_config import DEFAULT_APP_CONFIG
-from ui.config.ui_config import DEFAULT_UI_CONFIG
-from ui.interaction.controller_outcome import ControllerOutcomeAdapter
+from ui.interaction.controller import ControllerOutcomeAdapter
 from ui.rendering import BoardRenderer, CompositeRenderer, DirtyState, HudRenderer, RenderContext
 from ui.resources.asset_loader import load_ui_assets
 from ui.state.game_events import MoveAccepted, MoveRejected
@@ -76,7 +75,7 @@ def run_game(board_lines: list[str] | None = None) -> None:
             click_state["clicked"] = True
             click_state["action"] = RIGHT_ACTION
 
-    window_title = DEFAULT_UI_CONFIG.window_title
+    window_title = DEFAULT_APP_CONFIG.runtime.window_title
     cv2.namedWindow(window_title)
     cv2.setMouseCallback(window_title, _on_mouse)
 
@@ -96,7 +95,7 @@ def run_game(board_lines: list[str] | None = None) -> None:
             ),
             HudRenderer(
                 panel_bg=assets.panel_bg,
-                sidebar_w=DEFAULT_UI_CONFIG.sidebar_width_px,
+                sidebar_w=DEFAULT_APP_CONFIG.layout.panel.sidebar_width_px,
                 moves=container.moves,
                 scores=container.scores,
                 banner=container.banner,
@@ -114,7 +113,7 @@ def run_game(board_lines: list[str] | None = None) -> None:
                 action=action,
                 x=x,
                 y=y,
-                sidebar_width=DEFAULT_UI_CONFIG.sidebar_width_px,
+                sidebar_width=DEFAULT_APP_CONFIG.layout.panel.sidebar_width_px,
                 mapper=container.mapper,
                 facade=facade,
                 ui_controller=ui_controller,

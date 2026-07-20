@@ -1,13 +1,13 @@
 import pytest
-from server.models.board import Board
-from server.models.piece import Piece
-from server.models.position import Position
-from server.rules.rule_engine import RuleEngine
-from server.arbiter.real_time_arbiter import RealTimeArbiter
-from server.game_engine import GameEngine, RequestMoveResult
+from engine.models.board import Board
+from engine.models.piece import Piece
+from engine.models.position import Position
+from engine.rules.rule_engine import RuleEngine
+from engine.arbiter.real_time_arbiter import RealTimeArbiter
+from engine.game_engine import GameEngine, RequestMoveResult
 from ui.interaction.board_mapper import BoardMapper
 from ui.interaction.controller import Controller
-from ui.rendering.text_renderer import TextRenderer
+from ui.rendering.renderers import TextRenderer
 
 
 # ── helpers ────────────────────────────────────────────────────────────
@@ -157,7 +157,7 @@ class TestTextRenderer:
     renderer = TextRenderer()
 
     def snapshot(self, board_lines, scores=None, game_over=False, winner=None, motions=()):
-        from server.game_engine import GameSnapshot
+        from engine.game_engine import GameSnapshot
         board = Board(board_lines)
         grid  = tuple(tuple(row) for row in board._grid)
         return GameSnapshot(
