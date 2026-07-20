@@ -8,7 +8,6 @@ from ui.state.observer import Subject, Subscription
 
 @dataclass
 class MovesFeed:
-    entries: list[str] = field(default_factory=list)
     white_entries: list[str] = field(default_factory=list)
     black_entries: list[str] = field(default_factory=list)
     dirty: bool = True
@@ -28,7 +27,6 @@ class MovesFeed:
         dst = self._to_square(event.dst.row, event.dst.col)
         seconds = event.at_ms / 1000.0
         move_text = f"{event.piece_type}{src}-{dst} [{seconds:.1f}s]"
-        self.entries.append(move_text)
         if event.side == "w":
             self.white_entries.append(move_text)
         elif event.side == "b":

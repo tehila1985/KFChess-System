@@ -145,6 +145,43 @@ class HudRenderer(IRenderer):
     scores: object
     banner: object
     hud_config: object = DEFAULT_APP_CONFIG.hud
+    hud_layout: object = DEFAULT_APP_CONFIG.hud_layout
+    palette: object = DEFAULT_APP_CONFIG.palette
+    font: object = DEFAULT_APP_CONFIG.font
+
+    def _draw_side_panel(
+        self,
+        composed: Img,
+        x: int,
+        label: str,
+        captures: int,
+        entries: list[str],
+    ) -> None:
+        """Render one sidebar panel (white or black) at the given x offset."""
+        lo = self.hud_layout
+        cfg = self.hud_config
+        pal = self.palette
+        fnt = self.font
+
+        composed.put_text(label, x, lo.label_y,
+                          color_bgr=pal.text_primary_bgr, scale=1.0,
+                          font=fnt.face, thickness=fnt.thickness)
+        composed.put_text(f"{cfg.score_label}: {captures}", x, lo.score_y,
+                          color_bgr=pal.text_secondary_bgr, scale=0.8,
+                          font=fnt.face, thickness=fnt.thickness)
+        composed.put_text(cfg.separator, x, lo.separator_y,
+                          color_bgr=pal.text_muted_bgr, scale=0.5,
+                          font=fnt.face, thickness=fnt.thickness)
+        composed.put_text(cfg.moves_label, x, lo.moves_header_y,
+                          color_bgr=pal.text_secondary_bgr, scale=0.65,
+                          font=fnt.face, thickness=fnt.thickness)
+        recent = entries[-lo.max_move_entries:]
+        y = lo.entries_start_y
+        for entry in reversed(recent):
+            composed.put_text(entry, x, y,
+                              color_bgr=pal.text_secondary_bgr, scale=0.53,
+                              font=fnt.face, thickness=fnt.thickness)
+            y += lo.entry_line_height
 
     def draw(self, scene: Img, ctx: RenderContext) -> Img:
         board_h, board_w = scene.pixels.shape[:2]
@@ -163,31 +200,68 @@ class HudRenderer(IRenderer):
         self.panel_bg.draw_on(composed, self.sidebar_w + board_w, 0)
         scene.draw_on(composed, self.sidebar_w, 0)
 
-        composed.put_text(self.hud_config.white_label, 24, 56, color=(255, 255, 255), scale=1.0)
-        composed.put_text(f"{self.hud_config.score_label}: {self.scores.white_captures}", 24, 90, color=(235, 235, 235), scale=0.8)
-        composed.put_text(self.hud_config.separator, 24, 122, color=(190, 190, 190), scale=0.5)
-        composed.put_text(self.hud_config.moves_label, 24, 150, color=(235, 235, 235), scale=0.65)
-        white_recent = self.moves.white_entries[-12:]
-        left_y = 176
-        for entry in reversed(white_recent):
-            composed.put_text(entry, 24, left_y, color=(235, 235, 235), scale=0.53)
-            left_y += 22
+        lo = self.hud_layout
+        pal = self.palette
+        fnt = self.font
 
-        right_x = self.sidebar_w + board_w + 16
-        composed.put_text(self.hud_config.black_label, right_x, 56, color=(255, 255, 255), scale=1.0)
-        composed.put_text(f"{self.hud_config.score_label}: {self.scores.black_captures}", right_x, 90, color=(235, 235, 235), scale=0.8)
-        composed.put_text(self.hud_config.separator, right_x, 122, color=(190, 190, 190), scale=0.5)
-        composed.put_text(self.hud_config.moves_label, right_x, 150, color=(235, 235, 235), scale=0.65)
-        black_recent = self.moves.black_entries[-12:]
-        right_y = 176
-        for entry in reversed(black_recent):
-            composed.put_text(entry, right_x, right_y, color=(235, 235, 235), scale=0.53)
-            right_y += 22
+        # Left sidebar (white)
+        self._draw_side_panel(
+            composed,
+            x=lo.panel_x_margin,
+            label=self.hud_config.white_label,
+            captures=self.scores.white_captures,
+            entries=self.moves.white_entries,
+        )
 
+        # Right sidebar (black)
+        right_x = self.sidebar_w + board_w + lo.right_panel_x_offset
+        self._draw_side_panel(
+            composed,
+            x=right_x,
+            label=self.hud_config.black_label,
+            captures=self.scores.black_captures,
+            entries=self.moves.black_entries,
+        )
+
+        # Banner — white text on a dark filled box for maximum contrast
         if self.banner.message:
-            composed.put_text(self.banner.message, self.sidebar_w + 12, 40, color=(0, 0, 255), scale=0.85)
+            bx = self.sidebar_w + lo.banner_x_margin
+            by = 40
+            (text_w, text_h), baseline = cv2.getTextSize(
+                self.banner.message,
+                fnt.face,
+                0.85,
+                fnt.thickness,
+            )
+            box_pad = 6
+            composed.fill_rect(
+                bx - box_pad,
+                by - text_h - box_pad,
+                text_w + box_pad * 2,
+                text_h + baseline + box_pad * 2,
+                pal.banner_box_bgr,
+            )
+            composed.put_text(
+                self.banner.message,
+                bx,
+                by,
+                color_bgr=pal.banner_text_bgr,
+                scale=0.85,
+                font=fnt.face,
+                thickness=fnt.thickness,
+            )
+
+        # Status line
         if ctx.status_line:
-            composed.put_text(ctx.status_line, self.sidebar_w + 12, board_h - 16, color=(30, 220, 30), scale=0.6)
+            composed.put_text(
+                ctx.status_line,
+                self.sidebar_w + lo.banner_x_margin,
+                board_h - lo.status_y_from_bottom,
+                color_bgr=pal.status_ok_bgr,
+                scale=0.6,
+                font=fnt.face,
+                thickness=fnt.thickness,
+            )
 
         return composed
 

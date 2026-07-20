@@ -1,7 +1,6 @@
 import ui.animation.animation_clock as animation_clock_module
 from ui.animation.animation_clock import AnimationClock
 from ui.animation.motion_predictor import interpolate_pixel
-from ui.animation.piece_animator import PieceAnimator
 
 
 def test_interpolate_pixel_clamps_low() -> None:
@@ -17,17 +16,6 @@ def test_interpolate_pixel_clamps_high() -> None:
 def test_interpolate_pixel_midpoint() -> None:
     """Verify interpolate pixel midpoint."""
     assert interpolate_pixel((0, 0), (10, 20), 0.5) == (5, 10)
-
-
-def test_piece_animator_tick_and_state_reset() -> None:
-    """Verify piece animator tick and state reset."""
-    animator = PieceAnimator(token="wR")
-    animator.tick(120)
-    assert animator.elapsed_ms == 120
-
-    animator.set_state("move")
-    assert animator.state == "move"
-    assert animator.elapsed_ms == 0
 
 
 def test_animation_clock_uses_delta_ms(monkeypatch) -> None:

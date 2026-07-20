@@ -95,11 +95,24 @@ class GameFacade:
             # Capture must be detected from pre-tick destination occupancy.
             dst_cell_before = before_snapshot.grid[motion.dst.row][motion.dst.col]
             if dst_cell_before != "." and dst_cell_before[0] != motion.token[0]:
+                piece_type = dst_cell_before[1]
+                if piece_type == KING:
+                    points = 0
+                else:
+                    points = DEFAULT_CONFIG.piece_score.get(piece_type)
+                    if points is None:
+                        import warnings
+                        warnings.warn(
+                            f"No score configured for piece type '{piece_type}'; defaulting to 0. "
+                            "Add it to DEFAULT_CONFIG.piece_score to silence this warning.",
+                            stacklevel=1,
+                        )
+                        points = 0
                 self._subject.publish(
                     PieceCaptured(
                         captured_side=dst_cell_before[0],
-                        captured_type=dst_cell_before[1],
-                        points=0 if dst_cell_before[1] == KING else DEFAULT_CONFIG.piece_score.get(dst_cell_before[1], 0),
+                        captured_type=piece_type,
+                        points=points,
                         at=motion.dst,
                     )
                 )

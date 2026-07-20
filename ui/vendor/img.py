@@ -5,7 +5,10 @@ import numpy as np
 
 
 class Img:
-    """Small OpenCV-backed implementation of the required Img API."""
+    """Small OpenCV-backed implementation of the required Img API.
+
+    All color parameters follow OpenCV's BGR(A) channel order convention.
+    """
 
     def __init__(self, pixels: np.ndarray):
         self._pixels = pixels
@@ -65,24 +68,53 @@ class Img:
         dst[y0:y1, x0:x1] = dst_crop
         return other
 
+    def fill_rect(
+        self,
+        x: int,
+        y: int,
+        w: int,
+        h: int,
+        color_bgr: tuple[int, int, int],
+    ) -> "Img":
+        """Fill a solid rectangle on this image (BGR, in-place)."""
+        x0 = max(0, x)
+        y0 = max(0, y)
+        x1 = min(self._pixels.shape[1], x + w)
+        y1 = min(self._pixels.shape[0], y + h)
+        if x0 < x1 and y0 < y1:
+            self._pixels[y0:y1, x0:x1, :3] = color_bgr
+        return self
+
     def put_text(
         self,
         text: str,
         x: int,
         y: int,
-        color: tuple[int, int, int] = (255, 255, 255),
+        color_bgr: tuple[int, int, int] = (255, 255, 255),
         scale: float = 1.0,
+        font: int = cv2.FONT_HERSHEY_SIMPLEX,
+        thickness: int = 2,
     ) -> "Img":
+        """Render text onto this image.
+
+        Args:
+            text:      The string to render.
+            x, y:      Baseline origin in pixels.
+            color_bgr: Text colour in BGR channel order.
+            scale:     Font scale factor.
+            font:      OpenCV font face constant.
+            thickness: Stroke thickness in pixels.
+        """
         if self._pixels.shape[2] == 4:
             canvas = self._pixels[:, :, :3].copy()
             cv2.putText(
                 canvas,
                 text,
                 (int(x), int(y)),
-                cv2.FONT_HERSHEY_SIMPLEX,
+                font,
                 float(scale),
-                color,
-                2,
+                color_bgr,
+                thickness,
                 cv2.LINE_AA,
             )
             self._pixels[:, :, :3] = canvas
@@ -95,10 +127,10 @@ class Img:
                 canvas,
                 text,
                 (int(x), int(y)),
-                cv2.FONT_HERSHEY_SIMPLEX,
+                font,
                 float(scale),
-                color,
-                2,
+                color_bgr,
+                thickness,
                 cv2.LINE_AA,
             )
         return self

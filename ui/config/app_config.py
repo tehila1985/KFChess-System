@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import cv2
+
 
 @dataclass(frozen=True)
 class UiAssetsConfig:
@@ -17,10 +19,11 @@ class UiAssetsConfig:
 @dataclass(frozen=True)
 class UiOverlayStyleConfig:
     selection_border_px: int = 4
-    selection_border_rgba: tuple[int, int, int, int] = (0, 255, 255, 255)
-    legal_marker_fill_rgba: tuple[int, int, int, int] = (40, 220, 60, 210)
+    # All RGBA values follow OpenCV BGRA channel order
+    selection_border_bgra: tuple[int, int, int, int] = (0, 255, 255, 255)
+    legal_marker_fill_bgra: tuple[int, int, int, int] = (40, 220, 60, 210)
     legal_marker_fill_radius_px: int = 12
-    legal_marker_stroke_rgba: tuple[int, int, int, int] = (10, 110, 30, 220)
+    legal_marker_stroke_bgra: tuple[int, int, int, int] = (10, 110, 30, 220)
     legal_marker_stroke_radius_px: int = 14
     legal_marker_stroke_width_px: int = 2
 
@@ -28,7 +31,8 @@ class UiOverlayStyleConfig:
 @dataclass(frozen=True)
 class UiPanelStyleConfig:
     sidebar_width_px: int = 280
-    background_rgb: tuple[int, int, int] = (50, 50, 50)
+    # BGR channel order (OpenCV convention)
+    background_bgr: tuple[int, int, int] = (50, 50, 50)
 
 
 @dataclass(frozen=True)
@@ -51,6 +55,48 @@ class UiHudTextConfig:
     score_label: str = "Score"
     moves_label: str = "Moves"
     separator: str = "----------------"
+
+
+@dataclass(frozen=True)
+class UiHudLayoutConfig:
+    """Pixel positions for all HUD text elements.
+
+    All y-values are absolute pixel positions in the final composed frame.
+    right_panel_x_offset is the gap in pixels between the right edge of the
+    board and the start of the right sidebar text.
+    """
+    panel_x_margin: int = 24
+    label_y: int = 56
+    score_y: int = 90
+    separator_y: int = 122
+    moves_header_y: int = 150
+    entries_start_y: int = 176
+    entry_line_height: int = 22
+    right_panel_x_offset: int = 16
+    banner_x_margin: int = 12
+    status_y_from_bottom: int = 16
+    max_move_entries: int = 12
+
+
+# All color values use OpenCV BGR(A) channel order.
+@dataclass(frozen=True)
+class UiColorPaletteConfig:
+    # Text hierarchy
+    text_primary_bgr: tuple[int, int, int] = (255, 255, 255)    # white
+    text_secondary_bgr: tuple[int, int, int] = (235, 235, 235)  # near-white
+    text_muted_bgr: tuple[int, int, int] = (190, 190, 190)      # grey
+    # Status / feedback
+    status_ok_bgr: tuple[int, int, int] = (30, 220, 30)         # green
+    # Banner: white text on a dark box for maximum contrast
+    banner_text_bgr: tuple[int, int, int] = (255, 255, 255)
+    banner_box_bgr: tuple[int, int, int] = (20, 20, 20)
+
+
+@dataclass(frozen=True)
+class UiFontConfig:
+    """OpenCV font settings used throughout the HUD."""
+    face: int = cv2.FONT_HERSHEY_SIMPLEX
+    thickness: int = 2
 
 
 @dataclass(frozen=True)
@@ -105,12 +151,31 @@ class AppConfig:
     assets: UiAssetsConfig = UiAssetsConfig()
     pieces: UiPieceCatalogConfig = UiPieceCatalogConfig()
     hud: UiHudTextConfig = UiHudTextConfig()
+    hud_layout: UiHudLayoutConfig = UiHudLayoutConfig()
+    palette: UiColorPaletteConfig = UiColorPaletteConfig()
+    font: UiFontConfig = UiFontConfig()
     input: UiInputConfig = UiInputConfig()
     board: UiBoardConfig = UiBoardConfig()
     layout: UiLayoutConfig = UiLayoutConfig()
     status: UiStatusTextConfig = UiStatusTextConfig()
     runtime: UiRuntimeConfig = UiRuntimeConfig()
     theme: UiThemeConfig = UiThemeConfig()
+
+    def __post_init__(self) -> None:
+        # board_size_px must be exactly 8 × cell_size_px so that BoardMapper
+        # and BoardRenderer agree on where each cell sits.
+        expected_cell = self.assets.board_size_px // 8
+        assert self.board.cell_size_px == expected_cell, (
+            f"cell_size_px ({self.board.cell_size_px}) must equal "
+            f"board_size_px // 8 ({expected_cell}).  "
+            f"Update one of board.cell_size_px or assets.board_size_px."
+        )
+        # Piece sprite + padding on each side must fill a full cell exactly.
+        assert self.assets.piece_padding_px * 2 + self.assets.piece_size_px == self.board.cell_size_px, (
+            f"piece_padding_px ({self.assets.piece_padding_px}) * 2 + "
+            f"piece_size_px ({self.assets.piece_size_px}) must equal "
+            f"cell_size_px ({self.board.cell_size_px})."
+        )
 
 
 DEFAULT_APP_CONFIG = AppConfig()

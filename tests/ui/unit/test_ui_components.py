@@ -20,7 +20,6 @@ def test_moves_feed_appends_on_move_accepted() -> None:
 
     bus.publish(MoveAccepted(side="w", piece_type="P", at_ms=36200, src=Position(1, 6), dst=Position(2, 6)))
 
-    assert feed.entries == ["Pg7-g6 [36.2s]"]
     assert feed.white_entries == ["Pg7-g6 [36.2s]"]
     assert feed.black_entries == []
 

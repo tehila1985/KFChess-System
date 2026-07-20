@@ -51,7 +51,7 @@ def _load_board_image(app_config: AppConfig) -> Img:
 def _build_panel_background(app_config: AppConfig) -> Img:
     board_size = app_config.assets.board_size_px
     sidebar_width = app_config.layout.panel.sidebar_width_px
-    background = app_config.layout.panel.background_rgb
+    background = app_config.layout.panel.background_bgr
     panel = np.full((board_size, sidebar_width, 3), background, dtype=np.uint8)
     return Img(panel)
 
@@ -61,10 +61,10 @@ def _build_selection_overlay(app_config: AppConfig) -> Img:
     overlay_style = app_config.layout.overlay
     edge = overlay_style.selection_border_px
     selection_px = np.zeros((piece_size, piece_size, 4), dtype=np.uint8)
-    selection_px[:edge, :, :] = overlay_style.selection_border_rgba
-    selection_px[-edge:, :, :] = overlay_style.selection_border_rgba
-    selection_px[:, :edge, :] = overlay_style.selection_border_rgba
-    selection_px[:, -edge:, :] = overlay_style.selection_border_rgba
+    selection_px[:edge, :, :] = overlay_style.selection_border_bgra
+    selection_px[-edge:, :, :] = overlay_style.selection_border_bgra
+    selection_px[:, :edge, :] = overlay_style.selection_border_bgra
+    selection_px[:, -edge:, :] = overlay_style.selection_border_bgra
     return Img(selection_px)
 
 
@@ -77,8 +77,8 @@ def _build_legal_moves_overlay(app_config: AppConfig) -> Img:
     stroke_w = overlay_style.legal_marker_stroke_width_px
 
     legal_px = np.zeros((piece_size, piece_size, 4), dtype=np.uint8)
-    cv2.circle(legal_px, (center, center), fill_r, overlay_style.legal_marker_fill_rgba, -1)
-    cv2.circle(legal_px, (center, center), stroke_r, overlay_style.legal_marker_stroke_rgba, stroke_w)
+    cv2.circle(legal_px, (center, center), fill_r, overlay_style.legal_marker_fill_bgra, -1)
+    cv2.circle(legal_px, (center, center), stroke_r, overlay_style.legal_marker_stroke_bgra, stroke_w)
     return Img(legal_px)
 
 
