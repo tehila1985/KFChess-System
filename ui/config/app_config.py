@@ -8,12 +8,25 @@ class UiAssetsConfig:
     board_size_px: int = 800
     piece_size_px: int = 84
     piece_padding_px: int = 8
-    selection_border_px: int = 4
     legal_marker_center_px: int = 42
+    cooldown_overlay_frame_name: str = "2.png"
+
+
+@dataclass(frozen=True)
+class UiOverlayStyleConfig:
+    selection_border_px: int = 4
+    selection_border_rgba: tuple[int, int, int, int] = (0, 255, 255, 255)
+    legal_marker_fill_rgba: tuple[int, int, int, int] = (40, 220, 60, 210)
     legal_marker_fill_radius_px: int = 12
+    legal_marker_stroke_rgba: tuple[int, int, int, int] = (10, 110, 30, 220)
     legal_marker_stroke_radius_px: int = 14
     legal_marker_stroke_width_px: int = 2
-    cooldown_overlay_frame_name: str = "2.png"
+
+
+@dataclass(frozen=True)
+class UiPanelStyleConfig:
+    sidebar_width_px: int = 280
+    background_rgb: tuple[int, int, int] = (50, 50, 50)
 
 
 @dataclass(frozen=True)
@@ -60,7 +73,8 @@ class UiBoardConfig:
 
 @dataclass(frozen=True)
 class UiLayoutConfig:
-    sidebar_background_rgb: tuple[int, int, int] = (50, 50, 50)
+    overlay: UiOverlayStyleConfig = UiOverlayStyleConfig()
+    panel: UiPanelStyleConfig = UiPanelStyleConfig()
 
 
 @dataclass(frozen=True)

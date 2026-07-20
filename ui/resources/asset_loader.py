@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from ui.config.app_config import DEFAULT_APP_CONFIG, AppConfig
-from ui.config.ui_config import ASSETS_DIR, DEFAULT_UI_CONFIG
+from ui.config.ui_config import ASSETS_DIR
 from ui.vendor.img import Img
 
 
@@ -51,33 +51,35 @@ def _load_board_image(app_config: AppConfig) -> Img:
 
 def _build_panel_background(app_config: AppConfig) -> Img:
     board_size = app_config.assets.board_size_px
-    sidebar_width = DEFAULT_UI_CONFIG.sidebar_width_px
-    background = app_config.layout.sidebar_background_rgb
+    sidebar_width = app_config.layout.panel.sidebar_width_px
+    background = app_config.layout.panel.background_rgb
     panel = np.full((board_size, sidebar_width, 3), background, dtype=np.uint8)
     return Img(panel)
 
 
 def _build_selection_overlay(app_config: AppConfig) -> Img:
     piece_size = app_config.assets.piece_size_px
-    edge = app_config.assets.selection_border_px
+    overlay_style = app_config.layout.overlay
+    edge = overlay_style.selection_border_px
     selection_px = np.zeros((piece_size, piece_size, 4), dtype=np.uint8)
-    selection_px[:edge, :, :] = (0, 255, 255, 255)
-    selection_px[-edge:, :, :] = (0, 255, 255, 255)
-    selection_px[:, :edge, :] = (0, 255, 255, 255)
-    selection_px[:, -edge:, :] = (0, 255, 255, 255)
+    selection_px[:edge, :, :] = overlay_style.selection_border_rgba
+    selection_px[-edge:, :, :] = overlay_style.selection_border_rgba
+    selection_px[:, :edge, :] = overlay_style.selection_border_rgba
+    selection_px[:, -edge:, :] = overlay_style.selection_border_rgba
     return Img(selection_px)
 
 
 def _build_legal_moves_overlay(app_config: AppConfig) -> Img:
     piece_size = app_config.assets.piece_size_px
     center = app_config.assets.legal_marker_center_px
-    fill_r = app_config.assets.legal_marker_fill_radius_px
-    stroke_r = app_config.assets.legal_marker_stroke_radius_px
-    stroke_w = app_config.assets.legal_marker_stroke_width_px
+    overlay_style = app_config.layout.overlay
+    fill_r = overlay_style.legal_marker_fill_radius_px
+    stroke_r = overlay_style.legal_marker_stroke_radius_px
+    stroke_w = overlay_style.legal_marker_stroke_width_px
 
     legal_px = np.zeros((piece_size, piece_size, 4), dtype=np.uint8)
-    cv2.circle(legal_px, (center, center), fill_r, (40, 220, 60, 210), -1)
-    cv2.circle(legal_px, (center, center), stroke_r, (10, 110, 30, 220), stroke_w)
+    cv2.circle(legal_px, (center, center), fill_r, overlay_style.legal_marker_fill_rgba, -1)
+    cv2.circle(legal_px, (center, center), stroke_r, overlay_style.legal_marker_stroke_rgba, stroke_w)
     return Img(legal_px)
 
 
