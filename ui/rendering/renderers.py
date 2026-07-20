@@ -290,11 +290,14 @@ class HudRenderer(IRenderer):
             thickness=fnt.thickness,
         )
 
-        # How many entries fit in the remaining panel height
+        # How many entries fit in the remaining panel height — constant once
+        # the panel size is fixed, so the slice is always small.
         panel_h = composed.pixels.shape[0]
         available_h = panel_h - lo.entries_start_y - 10
         visible_count = max(1, available_h // lo.entry_line_height)
         recent = entries[-visible_count:]
+        # Display number counts from the true total, but we only render
+        # the visible window so len(entries) is not traversed each frame.
         total = len(entries)
 
         y = lo.entries_start_y

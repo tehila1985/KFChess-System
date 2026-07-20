@@ -8,7 +8,6 @@ from ui.state.observer import Subject, Subscription
 # Piece value order for sorting the captured-symbols display (highest first).
 _PIECE_ORDER = {"Q": 0, "R": 1, "B": 2, "N": 3, "P": 4, "K": 5}
 
-# Single character to show per captured piece type.
 _PIECE_SYMBOL: dict[str, str] = {
     "K": "K", "Q": "Q", "R": "R", "B": "B", "N": "N", "P": "P",
 }
@@ -18,9 +17,13 @@ _PIECE_SYMBOL: dict[str, str] = {
 class ScorePanel:
     white_captures: int = 0
     black_captures: int = 0
-    # Piece types captured BY each side (list, may contain duplicates).
-    white_captured_pieces: list[str] = field(default_factory=list)
-    black_captured_pieces: list[str] = field(default_factory=list)
+    # Pre-computed symbol strings — updated only on capture events,
+    # never recomputed during rendering.
+    white_symbols: str = ""
+    black_symbols: str = ""
+    # Internal piece lists used only to rebuild the symbol string.
+    _white_pieces: list[str] = field(default_factory=list)
+    _black_pieces: list[str] = field(default_factory=list)
     dirty: bool = True
     _subscription: Subscription | None = None
 
@@ -30,27 +33,16 @@ class ScorePanel:
     def _on_capture(self, event: PieceCaptured) -> None:
         piece_sym = _PIECE_SYMBOL.get(event.captured_type, event.captured_type)
         if event.captured_side == "w":
-            # White piece captured → black scores
             self.black_captures += event.points
-            self.black_captured_pieces.append(piece_sym)
+            self._black_pieces.append(piece_sym)
+            self.black_symbols = self._build_symbols(self._black_pieces)
         else:
-            # Black piece captured → white scores
             self.white_captures += event.points
-            self.white_captured_pieces.append(piece_sym)
+            self._white_pieces.append(piece_sym)
+            self.white_symbols = self._build_symbols(self._white_pieces)
         self.dirty = True
 
-    @property
-    def white_symbols(self) -> str:
-        """Captured piece symbols for display next to white's score."""
-        return self._format_symbols(self.white_captured_pieces)
-
-    @property
-    def black_symbols(self) -> str:
-        """Captured piece symbols for display next to black's score."""
-        return self._format_symbols(self.black_captured_pieces)
-
     @staticmethod
-    def _format_symbols(pieces: list[str]) -> str:
+    def _build_symbols(pieces: list[str]) -> str:
         """Sort by piece value (highest first) and join with spaces."""
-        sorted_pieces = sorted(pieces, key=lambda p: _PIECE_ORDER.get(p, 9))
-        return " ".join(sorted_pieces)
+        return " ".join(sorted(pieces, key=lambda p: _PIECE_ORDER.get(p, 9)))
