@@ -148,9 +148,13 @@ def run_game(board_lines: list[str] | None = None) -> None:
         if container.moves.dirty or container.scores.dirty or container.banner.dirty:
             needs_redraw = True
 
+        # Always redraw while pieces are in motion so animation is smooth.
+        if facade.get_snapshot().active_motions:
+            needs_redraw = True
+
         # --- Selection change detection ------------------------------------
         # Only mark dirty when the selected square *changes*, not every frame
-        # a piece is held selected (fixes the perpetual-dirty bug from 1.2).
+        # a piece is held selected.
         pending = ui_controller.pending_src
         selected_pos = (
             (pending.row, pending.col) if pending is not None else None
