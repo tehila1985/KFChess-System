@@ -34,6 +34,7 @@ class PieceArrived:
 class PieceCaptured:
     captured_side: str
     captured_type: str
+    points: int
     at: Position
 
 

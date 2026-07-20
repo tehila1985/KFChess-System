@@ -26,19 +26,19 @@ def test_moves_feed_appends_on_move_accepted() -> None:
 
 
 def test_score_panel_counts_captures_by_side() -> None:
-    """Verify score panel counts captures by side."""
+    """Verify score panel accumulates piece values by capturing side."""
     bus = EventBus()
     panel = ScorePanel()
     panel.bind(bus)
 
-    bus.publish(PieceCaptured(captured_side="w", captured_type="P", at=Position(1, 1)))
-    bus.publish(PieceCaptured(captured_side="b", captured_type="N", at=Position(2, 2)))
+    bus.publish(PieceCaptured(captured_side="w", captured_type="P", points=1, at=Position(1, 1)))
+    bus.publish(PieceCaptured(captured_side="b", captured_type="N", points=3, at=Position(2, 2)))
 
     assert panel.black_captures == 1
-    assert panel.white_captures == 1
+    assert panel.white_captures == 3
 
 def test_score_panel_updates_after_real_capture_from_facade_tick() -> None:
-    """Verify score panel updates after real capture from facade tick."""
+    """Verify score panel reflects captured piece value after facade tick."""
     board = Board(["wR . . bR"])
     engine = GameEngine(board, RuleEngine(), RealTimeArbiter(board))
     facade = GameFacade(engine)
@@ -50,7 +50,7 @@ def test_score_panel_updates_after_real_capture_from_facade_tick() -> None:
 
     facade.tick(3000)
 
-    assert panel.white_captures == 1
+    assert panel.white_captures == 5
     assert panel.black_captures == 0
 
 

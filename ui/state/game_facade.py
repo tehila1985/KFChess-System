@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from server.config import DEFAULT_CONFIG, KING
 from server.game_engine import GameEngine, MotionSummary, RequestMoveResult
 from server.models.position import Position
 from ui.state.game_events import GameOver, MoveAccepted, MoveRejected, PieceArrived, PieceCaptured
@@ -98,6 +99,7 @@ class GameFacade:
                     PieceCaptured(
                         captured_side=dst_cell_before[0],
                         captured_type=dst_cell_before[1],
+                        points=0 if dst_cell_before[1] == KING else DEFAULT_CONFIG.piece_score.get(dst_cell_before[1], 0),
                         at=motion.dst,
                     )
                 )

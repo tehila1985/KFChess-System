@@ -18,7 +18,7 @@ class ScorePanel:
 
     def _on_capture(self, event: PieceCaptured) -> None:
         if event.captured_side == "w":
-            self.black_captures += 1
+            self.black_captures += event.points
         else:
-            self.white_captures += 1
+            self.white_captures += event.points
         self.dirty = True
