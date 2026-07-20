@@ -5,6 +5,11 @@ from dataclasses import dataclass, field
 from ui.state.game_events import MoveAccepted
 from ui.state.observer import Subject, Subscription
 
+# Piece-type display characters (upper-case standard algebraic notation).
+_PIECE_DISPLAY: dict[str, str] = {
+    "K": "K", "Q": "Q", "R": "R", "B": "B", "N": "N", "P": "",
+}
+
 
 @dataclass
 class MovesFeed:
@@ -17,16 +22,16 @@ class MovesFeed:
         self._subscription = subject.subscribe(MoveAccepted, self._on_move)
 
     @staticmethod
-    def _to_square(pos_row: int, pos_col: int) -> str:
-        file_char = chr(ord("a") + pos_col)
-        rank = 8 - pos_row
-        return f"{file_char}{rank}"
+    def _to_square(row: int, col: int) -> str:
+        """Convert (row, col) to algebraic square notation e.g. (6,4) -> e2."""
+        return f"{chr(ord('a') + col)}{8 - row}"
 
     def _on_move(self, event: MoveAccepted) -> None:
         src = self._to_square(event.src.row, event.src.col)
         dst = self._to_square(event.dst.row, event.dst.col)
-        seconds = event.at_ms / 1000.0
-        move_text = f"{event.piece_type}{src}-{dst} [{seconds:.1f}s]"
+        piece_ch = _PIECE_DISPLAY.get(event.piece_type, event.piece_type)
+        # Compact notation: Pe2-e4  or  Nb1-c3  — fits the narrow panel
+        move_text = f"{piece_ch}{src}-{dst}"
         if event.side == "w":
             self.white_entries.append(move_text)
         elif event.side == "b":

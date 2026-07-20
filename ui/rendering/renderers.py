@@ -37,6 +37,10 @@ class TextRenderer:
         return "\n".join(" ".join(row) for row in snapshot.grid)
 
 
+# ---------------------------------------------------------------------------
+# BoardRenderer
+# ---------------------------------------------------------------------------
+
 @dataclass
 class BoardRenderer(IRenderer):
     board_img: Img
@@ -81,6 +85,7 @@ class BoardRenderer(IRenderer):
 
         cell_px = DEFAULT_APP_CONFIG.assets.board_size_px // 8
         piece_padding = DEFAULT_APP_CONFIG.assets.piece_padding_px
+
         for row_idx, row in enumerate(snapshot.grid):
             for col_idx, token in enumerate(row):
                 if token == ".":
@@ -107,7 +112,7 @@ class BoardRenderer(IRenderer):
                     overlay_h = self.cooldown_overlay.pixels.shape[0]
                     clip_h = max(1, int(overlay_h * progress))
                     top_y = y + (overlay_h - clip_h)
-                    overlay_part = Img(self.cooldown_overlay.pixels[overlay_h - clip_h :, :, :].copy())
+                    overlay_part = Img(self.cooldown_overlay.pixels[overlay_h - clip_h:, :, :].copy())
                     overlay_part.draw_on(board_frame, x, top_y)
 
         for row_idx, col_idx in ctx.legal_targets:
@@ -137,6 +142,10 @@ class BoardRenderer(IRenderer):
         return board_frame
 
 
+# ---------------------------------------------------------------------------
+# HudRenderer — redesigned panel
+# ---------------------------------------------------------------------------
+
 @dataclass
 class HudRenderer(IRenderer):
     panel_bg: Img
@@ -148,123 +157,311 @@ class HudRenderer(IRenderer):
     hud_layout: object = DEFAULT_APP_CONFIG.hud_layout
     palette: object = DEFAULT_APP_CONFIG.palette
     font: object = DEFAULT_APP_CONFIG.font
+    panel_style: object = DEFAULT_APP_CONFIG.layout.panel
 
-    def _draw_side_panel(
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _draw_header_band(
         self,
         composed: Img,
-        x: int,
+        panel_x: int,
         label: str,
-        captures: int,
-        entries: list[str],
+        header_color_bgr: tuple[int, int, int],
     ) -> None:
-        """Render one sidebar panel (white or black) at the given x offset."""
+        """Filled colour band at the top of a sidebar with a large player label."""
         lo = self.hud_layout
+        fnt = self.font
+        pal = self.palette
+
+        # Background fill for the header band
+        composed.fill_rect(
+            panel_x, 0,
+            self.sidebar_w, lo.header_band_h,
+            header_color_bgr,
+        )
+
+        # Player name — bold font, large, white
+        composed.put_text(
+            label,
+            panel_x + lo.panel_x_margin,
+            lo.label_y,
+            color_bgr=pal.text_primary_bgr,
+            scale=1.1,
+            font=fnt.face_bold,
+            thickness=fnt.thickness_bold,
+        )
+
+    def _draw_score_row(
+        self,
+        composed: Img,
+        panel_x: int,
+        captures: int,
+        captured_symbols: str,
+    ) -> None:
+        """Score box with point total and captured piece symbols."""
+        lo = self.hud_layout
+        fnt = self.font
+        pal = self.palette
+        ps = self.panel_style
         cfg = self.hud_config
-        pal = self.palette
-        fnt = self.font
 
-        composed.put_text(label, x, lo.label_y,
-                          color_bgr=pal.text_primary_bgr, scale=1.0,
-                          font=fnt.face, thickness=fnt.thickness)
-        composed.put_text(f"{cfg.score_label}: {captures}", x, lo.score_y,
-                          color_bgr=pal.text_secondary_bgr, scale=0.8,
-                          font=fnt.face, thickness=fnt.thickness)
-        composed.put_text(cfg.separator, x, lo.separator_y,
-                          color_bgr=pal.text_muted_bgr, scale=0.5,
-                          font=fnt.face, thickness=fnt.thickness)
-        composed.put_text(cfg.moves_label, x, lo.moves_header_y,
-                          color_bgr=pal.text_secondary_bgr, scale=0.65,
-                          font=fnt.face, thickness=fnt.thickness)
-        recent = entries[-lo.max_move_entries:]
-        y = lo.entries_start_y
-        for entry in reversed(recent):
-            composed.put_text(entry, x, y,
-                              color_bgr=pal.text_secondary_bgr, scale=0.53,
-                              font=fnt.face, thickness=fnt.thickness)
-            y += lo.entry_line_height
-
-    def draw(self, scene: Img, ctx: RenderContext) -> Img:
-        board_h, board_w = scene.pixels.shape[:2]
-        composed = Img(
-            cv2.copyMakeBorder(
-                scene.pixels,
-                0,
-                0,
-                self.sidebar_w,
-                self.sidebar_w,
-                cv2.BORDER_CONSTANT,
-                value=(0, 0, 0, 0) if scene.pixels.shape[2] == 4 else (0, 0, 0),
-            )
-        )
-        self.panel_bg.draw_on(composed, 0, 0)
-        self.panel_bg.draw_on(composed, self.sidebar_w + board_w, 0)
-        scene.draw_on(composed, self.sidebar_w, 0)
-
-        lo = self.hud_layout
-        pal = self.palette
-        fnt = self.font
-
-        # Left sidebar (white)
-        self._draw_side_panel(
-            composed,
-            x=lo.panel_x_margin,
-            label=self.hud_config.white_label,
-            captures=self.scores.white_captures,
-            entries=self.moves.white_entries,
+        # Score box background
+        composed.fill_rect(
+            panel_x + lo.panel_x_margin,
+            lo.score_row_top,
+            lo.panel_inner_width,
+            lo.score_row_h,
+            ps.score_box_bgr,
         )
 
-        # Right sidebar (black)
-        right_x = self.sidebar_w + board_w + lo.right_panel_x_offset
-        self._draw_side_panel(
-            composed,
-            x=right_x,
-            label=self.hud_config.black_label,
-            captures=self.scores.black_captures,
-            entries=self.moves.black_entries,
+        # "PTS" label in muted grey
+        composed.put_text(
+            cfg.score_label,
+            panel_x + lo.panel_x_margin + 6,
+            lo.score_value_y,
+            color_bgr=pal.text_muted_bgr,
+            scale=0.55,
+            font=fnt.face,
+            thickness=fnt.thickness,
         )
 
-        # Banner — white text on a dark filled box for maximum contrast
-        if self.banner.message:
-            bx = self.sidebar_w + lo.banner_x_margin
-            by = 40
-            (text_w, text_h), baseline = cv2.getTextSize(
-                self.banner.message,
-                fnt.face,
-                0.85,
-                fnt.thickness,
-            )
-            box_pad = 6
-            composed.fill_rect(
-                bx - box_pad,
-                by - text_h - box_pad,
-                text_w + box_pad * 2,
-                text_h + baseline + box_pad * 2,
-                pal.banner_box_bgr,
-            )
+        # Point value — bright accent colour
+        pts_text = str(captures)
+        composed.put_text(
+            pts_text,
+            panel_x + lo.panel_x_margin + 48,
+            lo.score_value_y,
+            color_bgr=pal.score_text_bgr,
+            scale=0.85,
+            font=fnt.face_bold,
+            thickness=fnt.thickness_bold,
+        )
+
+        # Captured piece symbols (e.g. "Q N P P") right-aligned stub
+        if captured_symbols:
             composed.put_text(
-                self.banner.message,
-                bx,
-                by,
-                color_bgr=pal.banner_text_bgr,
-                scale=0.85,
+                captured_symbols,
+                panel_x + lo.panel_x_margin + 90,
+                lo.score_value_y,
+                color_bgr=pal.text_muted_bgr,
+                scale=0.45,
                 font=fnt.face,
                 thickness=fnt.thickness,
             )
 
-        # Status line
+    def _draw_divider(self, composed: Img, panel_x: int) -> None:
+        """Horizontal rule drawn directly on the pixel buffer."""
+        lo = self.hud_layout
+        ps = self.panel_style
+        x0 = panel_x + lo.panel_x_margin
+        x1 = panel_x + self.sidebar_w - lo.panel_x_margin
+        y = lo.divider_y
+        cv2.line(
+            composed.pixels,
+            (x0, y), (x1, y),
+            ps.divider_bgr,
+            lo.divider_thickness,
+            cv2.LINE_AA,
+        )
+
+    def _draw_moves_section(
+        self,
+        composed: Img,
+        panel_x: int,
+        entries: list[str],
+    ) -> None:
+        """Moves header + numbered list of recent moves, newest at top."""
+        lo = self.hud_layout
+        fnt = self.font
+        pal = self.palette
+        cfg = self.hud_config
+        ps = self.panel_style
+
+        # Section header
+        composed.put_text(
+            cfg.moves_label,
+            panel_x + lo.panel_x_margin,
+            lo.moves_header_y,
+            color_bgr=pal.text_muted_bgr,
+            scale=0.5,
+            font=fnt.face_bold,
+            thickness=fnt.thickness,
+        )
+
+        # How many entries fit in the remaining panel height
+        panel_h = composed.pixels.shape[0]
+        available_h = panel_h - lo.entries_start_y - 10
+        visible_count = max(1, available_h // lo.entry_line_height)
+        recent = entries[-visible_count:]
+        total = len(entries)
+
+        y = lo.entries_start_y
+        for i, entry in enumerate(reversed(recent)):
+            move_num = total - i
+            row_bg = ps.move_alt_bg_bgr if (move_num % 2 == 0) else None
+
+            # Alternating row background
+            if row_bg is not None:
+                composed.fill_rect(
+                    panel_x + lo.panel_x_margin,
+                    y - lo.entry_line_height + 4,
+                    lo.panel_inner_width,
+                    lo.entry_line_height,
+                    row_bg,
+                )
+
+            # Move number
+            composed.put_text(
+                f"{move_num}.",
+                panel_x + lo.panel_x_margin + 2,
+                y,
+                color_bgr=pal.text_number_bgr,
+                scale=0.42,
+                font=fnt.face,
+                thickness=fnt.thickness,
+            )
+
+            # Move notation
+            composed.put_text(
+                entry,
+                panel_x + lo.panel_x_margin + lo.entry_num_width,
+                y,
+                color_bgr=pal.text_secondary_bgr,
+                scale=0.44,
+                font=fnt.face,
+                thickness=fnt.thickness,
+            )
+
+            y += lo.entry_line_height
+
+    def _draw_side_panel(
+        self,
+        composed: Img,
+        panel_x: int,
+        label: str,
+        captures: int,
+        captured_symbols: str,
+        entries: list[str],
+        header_color_bgr: tuple[int, int, int],
+    ) -> None:
+        """Render a full sidebar panel at panel_x."""
+        ps = self.panel_style
+
+        # Panel background
+        composed.fill_rect(panel_x, 0, self.sidebar_w, composed.pixels.shape[0], ps.background_bgr)
+
+        self._draw_header_band(composed, panel_x, label, header_color_bgr)
+        self._draw_score_row(composed, panel_x, captures, captured_symbols)
+        self._draw_divider(composed, panel_x)
+        self._draw_moves_section(composed, panel_x, entries)
+
+    # ------------------------------------------------------------------
+    # IRenderer.draw
+    # ------------------------------------------------------------------
+
+    def draw(self, scene: Img, ctx: RenderContext) -> Img:
+        board_h, board_w = scene.pixels.shape[:2]
+        pal = self.palette
+        fnt = self.font
+        lo = self.hud_layout
+
+        composed = Img(
+            cv2.copyMakeBorder(
+                scene.pixels,
+                0, 0,
+                self.sidebar_w, self.sidebar_w,
+                cv2.BORDER_CONSTANT,
+                value=(0, 0, 0, 0) if scene.pixels.shape[2] == 4 else (0, 0, 0),
+            )
+        )
+
+        # Place board in center
+        scene.draw_on(composed, self.sidebar_w, 0)
+
+        # Left panel — White
+        self._draw_side_panel(
+            composed,
+            panel_x=0,
+            label=self.hud_config.white_label,
+            captures=self.scores.white_captures,
+            captured_symbols=getattr(self.scores, "white_symbols", ""),
+            entries=self.moves.white_entries,
+            header_color_bgr=self.palette.white_player_header_bgr,
+        )
+
+        # Right panel — Black
+        self._draw_side_panel(
+            composed,
+            panel_x=self.sidebar_w + board_w,
+            label=self.hud_config.black_label,
+            captures=self.scores.black_captures,
+            captured_symbols=getattr(self.scores, "black_symbols", ""),
+            entries=self.moves.black_entries,
+            header_color_bgr=self.palette.black_player_header_bgr,
+        )
+
+        # Thin border lines between panels and board
+        bx_left = self.sidebar_w
+        bx_right = self.sidebar_w + board_w - 1
+        cv2.line(composed.pixels, (bx_left, 0), (bx_left, board_h - 1),
+                 self.panel_style.divider_bgr, 2)
+        cv2.line(composed.pixels, (bx_right, 0), (bx_right, board_h - 1),
+                 self.panel_style.divider_bgr, 2)
+
+        # Banner — white text on a dark filled box, centred on board
+        if self.banner.message:
+            bx = self.sidebar_w + lo.banner_x_margin
+            by = 48
+            (text_w, text_h), baseline = cv2.getTextSize(
+                self.banner.message, fnt.face_bold, 1.1, fnt.thickness_bold,
+            )
+            box_pad = 10
+            # Semi-dark fill spanning full board width
+            composed.fill_rect(
+                self.sidebar_w,
+                by - text_h - box_pad,
+                board_w,
+                text_h + baseline + box_pad * 2,
+                pal.banner_box_bgr,
+            )
+            # Centred text
+            text_x = self.sidebar_w + (board_w - text_w) // 2
+            composed.put_text(
+                self.banner.message,
+                text_x, by,
+                color_bgr=pal.banner_text_bgr,
+                scale=1.1,
+                font=fnt.face_bold,
+                thickness=fnt.thickness_bold,
+            )
+
+        # Status line — bottom of board area
         if ctx.status_line:
+            composed.fill_rect(
+                self.sidebar_w,
+                board_h - lo.status_y_from_bottom - 16,
+                board_w,
+                lo.status_y_from_bottom + 16,
+                (0, 0, 0),
+            )
             composed.put_text(
                 ctx.status_line,
                 self.sidebar_w + lo.banner_x_margin,
-                board_h - lo.status_y_from_bottom,
+                board_h - 6,
                 color_bgr=pal.status_ok_bgr,
-                scale=0.6,
+                scale=0.52,
                 font=fnt.face,
                 thickness=fnt.thickness,
             )
 
         return composed
 
+
+# ---------------------------------------------------------------------------
+# CompositeRenderer
+# ---------------------------------------------------------------------------
 
 @dataclass
 class CompositeRenderer(IRenderer):
