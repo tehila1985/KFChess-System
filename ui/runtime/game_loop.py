@@ -142,14 +142,21 @@ def run_game(board_lines: list[str] | None = None) -> None:
         if delta_ms <= 0:
             delta_ms = DEFAULT_APP_CONFIG.runtime.fallback_frame_ms
         elapsed_ms += delta_ms
+
+        # Sample active_motions BEFORE the tick so that the final frame
+        # (piece arriving at destination) is always rendered even after
+        # active_motions becomes empty.
+        had_active_motions = bool(facade.get_snapshot().active_motions)
+
         facade.tick(delta_ms)
 
         # Observer-driven components mark themselves dirty when they update.
         if container.moves.dirty or container.scores.dirty or container.banner.dirty:
             needs_redraw = True
 
-        # Always redraw while pieces are in motion so animation is smooth.
-        if facade.get_snapshot().active_motions:
+        # Redraw if pieces were moving before this tick (covers both
+        # in-flight frames and the final arrival frame).
+        if had_active_motions or facade.get_snapshot().active_motions:
             needs_redraw = True
 
         # --- Selection change detection ------------------------------------
