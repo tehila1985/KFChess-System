@@ -6,10 +6,10 @@ This package contains a thin, decoupled UI architecture for Kung-Fu Chess.
 
 - `interaction/`: Input mapping and click-to-action orchestration (`BoardMapper`, `Controller`, `ControllerOutcomeAdapter`).
 - `composition/`: Application wiring (`build_container`, `AppContainer`).
-- `presentation/`: Non-graphical presentation renderers (`TextRenderer`).
 - `state/`: Observer bus, events, and `GameFacade` bridge around engine logic.
 - `animation/`: Frame clock, motion interpolation, and piece animation state.
 - `rendering/`: Board/HUD render stages and render context contracts.
+- `rendering/text_renderer.py`: Text snapshot renderer for CLI and tests.
 - `user_input/`: Device adapters (mouse/pointer) that delegate into `interaction/`.
 - `ui_components/`: Observer subscribers such as score/moves/banner.
 - `vendor/img.py`: Graphical primitive entrypoint (`read`, `draw_on`, `put_text`, `show`).

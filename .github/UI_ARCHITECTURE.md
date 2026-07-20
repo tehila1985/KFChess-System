@@ -1,193 +1,257 @@
 # UI Architecture
 
-This document explains the UI architecture, module responsibilities, runtime flow, and test structure.
+This document describes the UI layer, its runtime flow, module boundaries, configuration surface, asset loading, rendering pipeline, and the current test layout.
 
-## Overview
+## Purpose
 
-The UI layer is responsible for rendering, user input, and presentation state.
-Game rules and authoritative state remain in the engine layer.
+The UI is responsible for:
+- rendering the board and HUD,
+- collecting user input,
+- converting user intent into engine-safe actions,
+- presenting engine snapshots and observer events,
+- keeping all chess rules and authoritative state out of the UI.
 
-High-level direction:
-- Engine owns game truth: legality, motion, collision, cooldown, score, game-over.
-- UI reads immutable snapshots and renders frames.
-- UI sends user actions back to the engine through a mapper/controller/facade boundary.
-- Observer-based components consume UI events for side panels (moves, score, banner).
+The UI must remain a presentation layer only. It may interpret user events and render derived state, but it must not decide move legality, resolve collisions, score captures, or mutate the board directly.
 
-## Main Runtime Entry
+## High-Level Boundaries
 
-Files: `ui/main.py`, `ui/runtime/game_loop.py`
+- `server/` owns game truth: move legality, motion timing, collision resolution, score, game-over, and king capture handling.
+- `ui/` owns the OpenCV window, interaction adapters, event subscribers, and frame rendering.
+- `ui/state/game_facade.py` is the only UI-facing boundary that touches `GameEngine` directly.
+- `ui/composition/container.py` is the wiring root for the UI runtime.
 
-Responsibilities:
-- `ui/main.py`: thin entry point only.
-- `ui/runtime/game_loop.py`: runtime orchestration and frame loop only.
-- Load visual assets through `ui/resources/asset_loader.py`.
-- Run the non-blocking frame loop:
-  - handle pointer events,
-  - left click routes through `ControllerOutcomeAdapter` for select/move,
-  - right click maps to board position and triggers `facade.request_jump(...)`,
-  - advance time (`AnimationClock`),
-  - call `facade.tick(delta_ms)`,
-  - render frame through `CompositeRenderer`,
-  - display window.
+## Runtime Entry Points
 
-Important render features:
-- Piece animation states (`idle`, `move`, `jump`, rest states).
-- Selection highlight for the chosen source square.
-- Legal-destination highlights for selected piece.
-- Cooldown visual overlay.
-- Sidebars with per-side score and moves.
+Files:
+- `ui/main.py`
+- `ui/runtime/game_loop.py`
+
+### `ui/main.py`
+- Thin executable entry point.
+- Calls `run_game()` and does not contain runtime policy.
+
+### `ui/runtime/game_loop.py`
+- Coordinates the frame loop.
+- Connects input, the facade, rendering, and dirty-state management.
+- Reads runtime defaults from `ui/config/app_config.py` and `ui/config/ui_config.py`.
+- Uses `AnimationClock` to advance wall-clock-like time in the render loop.
+- Emits frame updates through `CompositeRenderer`.
+
+Responsibilities of the runtime loop:
+- handle left and right mouse actions,
+- convert pointer state into engine or facade calls,
+- advance simulation with `facade.tick(delta_ms)`,
+- mark and clear dirty UI state,
+- render and present the final OpenCV frame,
+- terminate on `q`, `ESC`, or window close.
+
+## Interaction Flow
+
+### Left click path
+1. OpenCV captures pointer coordinates.
+2. `ControllerOutcomeAdapter` converts controller return values to `ActionOutcome`.
+3. `Controller` manages the two-click select/move state machine.
+4. `GameFacade.request_move(...)` forwards the request into the server layer.
+
+### Right click path
+1. OpenCV captures pointer coordinates.
+2. `BoardMapper` converts the click into a board position.
+3. `GameFacade.request_jump(...)` sends the jump request to the server.
+
+### Per-frame path
+1. `AnimationClock.tick_ms()` computes elapsed milliseconds.
+2. `GameFacade.tick(delta_ms)` advances the engine.
+3. `GameFacade` publishes UI events for motion completion, captures, and game-over.
+4. `CompositeRenderer` draws board and HUD using the latest snapshot and context.
 
 ## Composition Root
 
-### `ui/composition/container.py`
-- Defines `AppContainer` with the UI runtime dependencies:
-  - `GameFacade`,
-  - `Controller`,
-  - `BoardMapper`,
-  - sidebar subscribers (`MovesFeed`, `ScorePanel`, `Banner`).
-- `build_container(...)` wires board + engine + facade + UI subscribers.
-- Keeps wiring out of the frame loop.
+File: `ui/composition/container.py`
 
-## UI Input Pipeline
+`build_container(...)` wires together:
+- `Board`,
+- `RuleEngine`,
+- `RealTimeArbiter`,
+- `GameEngine`,
+- `GameFacade`,
+- `BoardMapper`,
+- `Controller`,
+- observer-driven UI components (`MovesFeed`, `ScorePanel`, `Banner`).
+
+The container keeps construction and dependency wiring out of the runtime loop and rendering classes.
+
+## Input and Control Layer
 
 ### `ui/interaction/board_mapper.py`
-- Converts pixel coordinates to board positions.
-- Isolates pixel/grid mapping from the rest of the code.
+- Converts pixel coordinates into board positions.
+- Keeps pixel/grid math isolated from controller logic.
+- Used both by the runtime loop and by any click-to-grid UI adapter.
 
 ### `ui/interaction/controller.py`
-- Two-click input model:
-  - first click selects source,
-  - second click attempts move to destination.
-- Handles click edge-cases:
-  - outside board clears selection,
-  - selecting same-color piece switches source,
-  - frozen/cooldown piece selection can be ignored,
-  - stale source selections are recovered safely.
-- Delegates all legality to server/facade, no chess rules inside controller.
-- Jump is intentionally not part of controller state-machine and is handled as a runtime action.
+- Implements the two-click selection model:
+  - first click selects a source,
+  - second click requests a move.
+- Handles click edge cases:
+  - outside-board clicks clear or preserve state safely,
+  - selecting another piece updates the source,
+  - stale or frozen selections are handled defensively,
+  - controller does not contain chess rule logic.
+- Delegates all move legality to the engine/facade boundary.
 
 ### `ui/interaction/controller_outcome.py`
-- Normalizes controller result values to `ActionOutcome`.
-- Keeps UI runtime logic independent from raw engine result enums.
+- Normalizes controller responses to `ActionOutcome`.
+- Keeps runtime code independent from raw engine result enums.
 
 ### `ui/user_input/mouse_controller.py`
-- Thin adapter that forwards pointer coordinates to controller click handling.
+- Small adapter for pointer-to-controller forwarding.
 
 ## State and Event Layer
 
 ### `ui/state/game_facade.py`
-- Thin boundary around `GameEngine` for UI use.
-- Exposes engine snapshot and helper queries (cooldown/game-over/legal destinations).
-- Publishes UI-level events on observer bus:
-  - `MoveAccepted`, `MoveRejected`,
-  - `PieceArrived`, `PieceCaptured`,
+- Thin UI-facing wrapper around `GameEngine`.
+- Exposes engine snapshot and queries for:
+  - legal destinations,
+  - cooldown state,
+  - game-over state.
+- Publishes UI-level observer events:
+  - `MoveAccepted`,
+  - `MoveRejected`,
+  - `PieceArrived`,
+  - `PieceCaptured`,
   - `GameOver`.
-- Detects completed motions by diffing active motions before/after tick.
-- Detects captures from pre-tick destination occupancy.
+- Diffs active motions before and after `tick()` to infer completed motion events.
+- Detects captures from the destination occupancy before the tick resolves.
 
 ### `ui/state/game_events.py`
-- Dataclasses for event payloads.
-- Move metadata includes side, piece type, and move timestamp for UI formatting.
+- Dataclasses for UI event payloads.
+- Carries move metadata such as side, piece type, source/destination, and timestamps.
 
 ### `ui/state/observer.py`
-- Subject/event bus abstraction used by UI components.
+- Lightweight event bus used by UI components.
+- Supports subscribe, publish, and unsubscribe semantics.
 
 ### `ui/state/outcome.py`
-- Defines `ActionOutcome` used by the UI flow.
+- Defines `ActionOutcome` for controller/runtime normalization.
 
-## UI Components
+## UI Subscriber Components
 
 ### `ui/ui_components/moves_feed.py`
 - Subscribes to `MoveAccepted`.
-- Builds move history entries in chess-like notation.
-- Stores separate lists for white and black sidebars.
+- Formats move notation for the side panels.
+- Maintains separate white and black move histories.
 
 ### `ui/ui_components/score_panel.py`
 - Subscribes to `PieceCaptured`.
-- Maintains capture counts per side for display.
+- Keeps capture counts for each side.
 
 ### `ui/ui_components/banner.py`
-- Subscribes to game-level events.
-- Displays transient or persistent status/banner messages.
+- Subscribes to game-state events.
+- Shows transient or persistent status messages.
 
 ## Animation and Rendering
 
 ### `ui/animation/`
-- `animation_clock.py`: frame-time clock (`tick_ms`).
-- `motion_predictor.py`: pixel interpolation for smooth motion rendering.
-- `piece_animator.py`: animation helpers for piece state transitions.
+- `animation_clock.py`: frame-time clock utilities.
+- `motion_predictor.py`: pixel interpolation for smooth motion.
+- `piece_animator.py`: animation-state placeholder for pieces keyed by token.
 
 ### `ui/rendering/`
-- `interfaces.py`: renderer protocol and immutable `RenderContext`.
+- `interfaces.py`: renderer protocol and `RenderContext` definition.
+- `dirty.py`: `DirtyState` helper for frame invalidation.
 - `renderers.py`:
-  - `BoardRenderer` draws board, pieces, legal targets, cooldown overlay, active motions.
-  - `HudRenderer` draws side panels, score, moves feed, banner and status line.
-  - `CompositeRenderer` composes rendering pipeline by stage.
-- `dirty.py`: `DirtyState` utility for frame invalidation decisions.
+  - `BoardRenderer` draws board state, pieces, highlights, cooldown overlay, and active motions.
+  - `HudRenderer` draws sidebars, score, moves, banner, and status line.
+  - `CompositeRenderer` composes renderers in order.
 
 ### `ui/vendor/img.py`
-- Image wrapper over OpenCV operations.
-- Handles alpha-safe text and overlay drawing.
+- Image wrapper over OpenCV.
+- Handles drawing, compositing, and text operations in a safer API.
 
-## Asset and Runtime Config
+## Asset Loading and UI Config
 
 ### `ui/resources/asset_loader.py`
-- Dedicated loader for board image, piece frames, overlays and HUD panel background.
-- Centralizes sprite-size preprocessing and per-state fps extraction.
+- Loads board art, cooldown art, piece frames, overlays, and sidebar background.
+- Centralizes sprite resizing and frame-rate extraction.
+- Reads all UI styling and token catalogs from config objects rather than hardcoded inline values.
+- Preserves backward-compatible fallbacks for missing skins and asset folders.
 
 ### `ui/config/app_config.py`
-- Holds UI runtime constants/messages used by runtime and render flow.
-- Avoids hard-coded strings and display constants in business/runtime logic.
+- Holds UI asset sizing, overlay colors, panel styles, input actions, board defaults, HUD labels, and status strings.
+- Keeps magic values out of runtime and rendering code.
+- Serves as the main configuration object injected into asset loading and runtime logic.
 
 ### `ui/config/ui_config.py`
-- Holds global UI defaults (window title, sidebar width, board cell sizing, skin name).
-- Keeps static UI settings in a single place shared by runtime/composition/resources.
+- Holds shared UI defaults such as window title, board cell size, sidebar width, and skin name.
+- Provides stable defaults for composition and resource loading.
 
-## Data Flow
+## Rendering Pipeline
 
-1. User clicks in OpenCV window.
-2. `main.py` forwards pointer events to `ui/runtime/game_loop.py`.
-3. Left click path: `ControllerOutcomeAdapter` -> controller -> `GameFacade.request_move(...)`.
-4. Right click path: mapper -> `GameFacade.request_jump(...)`.
-5. Per frame, `facade.tick(dt)` advances simulation and publishes arrival/capture/game-over events.
-6. `CompositeRenderer` executes board stage then HUD stage using `RenderContext`.
-7. Observer subscribers update sidebars from published events.
+1. `load_ui_assets(DEFAULT_APP_CONFIG)` loads board art, overlays, and piece frame caches.
+2. `BoardRenderer` renders the board snapshot, pieces, selection highlight, legal destinations, cooldown overlay, and active motions.
+3. `HudRenderer` renders side panels, scores, move lists, banner text, and the status line.
+4. `CompositeRenderer` applies renderers in sequence and returns the final frame.
+5. `Img.show(...)` presents the frame in the OpenCV window.
 
-## Boundaries and Invariants
+Important visual features:
+- piece animation states: `idle`, `move`, `jump`, and rest states,
+- selected-source highlight,
+- legal destination markers,
+- cooldown fade overlay,
+- side panels for score and move history,
+- banner and status line.
 
-- UI never mutates board state directly.
-- Engine remains single source of truth.
-- Rule legality always evaluated in `RuleEngine`.
-- Controller remains stateless with respect to chess rules.
-- Rendering is driven by immutable snapshots plus render context.
-- Dependency wiring lives in `ui/composition/container.py`, not in rendering or controller code.
+## Runtime State and Invariants
 
-## Test Structure
+- UI never mutates the board directly.
+- UI only renders immutable snapshots plus current `RenderContext`.
+- Engine remains the single source of truth for rules and state changes.
+- Rendering code does not decide legality or resolve outcomes.
+- Controller code does not know chess rules.
+- Engine interaction is centralized in `GameFacade`.
+- Dependency wiring belongs in `ui/composition/container.py`.
 
-All tests are now organized under `tests/` by domain.
+## Test Layout
 
-### `tests/server/`
-Server domain tests:
-- Arbiter behavior
-- Engine request/tick/snapshot behavior
-- Rule engine and models
-- Integration scenarios and runner scenarios
+The test tree is now split by domain and test type.
 
-### `tests/ui/`
-UI/domain-adapter tests:
-- Mapper and controller behavior
-- Facade event publishing
-- Observer/event bus behavior
-- UI component subscribers
-- Animation and user input adapters
-- Text-render oriented UI tests
+### `tests/UI/unit/`
+Unit-style UI tests for isolated adapters and components:
+- animation helpers,
+- board mapper and controller,
+- controller outcome normalization,
+- facade event publishing,
+- observer/event bus,
+- UI component subscribers,
+- text-render-style UI behavior,
+- mouse/controller adapter behavior.
 
-This split keeps responsibilities clear and helps run focused suites:
-- `pytest tests/server -q`
-- `pytest tests/ui -q`
+### `tests/UI/integration/`
+UI integration tests that exercise the runtime pointer-routing path:
+- `test_runtime_jump.py`.
+
+### `tests/SERVER/unit/`
+Server-side unit tests for isolated logic:
+- arbiter behavior,
+- engine request/tick/snapshot behavior,
+- board/model invariants,
+- rule engine behavior,
+- capture and scoring logic.
+
+### `tests/SERVER/integration/`
+Server integration and end-to-end scenario tests:
+- full engine/controller/rendering scenarios,
+- command-runner scenarios,
+- capture flow and game-over flow.
+
+This split lets you run focused suites:
+- `pytest tests/UI/unit -q`
+- `pytest tests/UI/integration -q`
+- `pytest tests/SERVER/unit -q`
+- `pytest tests/SERVER/integration -q`
 
 ## Notes for Future Changes
 
-- If adding a new visual overlay, keep state derivation in server/facade and draw only in `main.py`.
-- If adding new user interactions, keep coordinate logic in mapper/controller; keep rules in server/rules.
-- If adding new side panel data, prefer observer events and small subscriber components.
+- If you add a new overlay or visual effect, derive its state in the facade or runtime config and keep drawing logic in the renderer.
+- If you add a new input gesture, keep coordinate mapping in the mapper/controller layer and avoid rule logic in the UI.
+- If you add new side-panel data, prefer observer events plus small subscriber components.
+- If you add new assets or skins, extend the config objects and asset loader fallbacks instead of hardcoding file names.

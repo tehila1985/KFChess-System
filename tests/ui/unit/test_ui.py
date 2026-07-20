@@ -7,7 +7,7 @@ from server.arbiter.real_time_arbiter import RealTimeArbiter
 from server.game_engine import GameEngine, RequestMoveResult
 from ui.interaction.board_mapper import BoardMapper
 from ui.interaction.controller import Controller
-from ui.presentation.text_renderer import TextRenderer
+from ui.rendering.text_renderer import TextRenderer
 
 
 # ── helpers ────────────────────────────────────────────────────────────
