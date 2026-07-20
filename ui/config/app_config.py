@@ -203,10 +203,10 @@ class UiSoundConfig:
     Files are loaded lazily — missing files are silently skipped.
     """
     enabled: bool = True
-    move_sound: str = "sounds/move.wav"
-    capture_sound: str = "sounds/capture.wav"
-    game_start_sound: str = "sounds/game_start.wav"
-    game_over_sound: str = "sounds/game_over.wav"
+    move_sound: str = "sounds/freesounds123-walking-on-wood-363349.mp3"
+    capture_sound: str = "sounds/freesounds123-walking-on-wood-363349.mp3"
+    game_start_sound: str = "sounds/scratchonix-victory-chime-366449.mp3"
+    game_over_sound: str = "sounds/eaglaxle-gaming-victory-464016.mp3"
 
 
 @dataclass(frozen=True)
