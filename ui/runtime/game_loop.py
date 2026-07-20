@@ -68,15 +68,12 @@ def run_game(board_lines: list[str] | None = None) -> None:
     clock = AnimationClock()
     elapsed_ms = 0
 
-    # Track the previous selection so we only mark the frame dirty on change.
-    _prev_selected: tuple[int, int] | None = None
-
     def _on_mouse(event: int, x: int, y: int, _flags: int, _param: object) -> None:
         if event == cv2.EVENT_LBUTTONDOWN:
             click_state["x"] = x
             click_state["y"] = y
             click_state["action"] = LEFT_ACTION
-            click_state["clicked"] = True          # set last — consumed by loop
+            click_state["clicked"] = True
         elif event == cv2.EVENT_RBUTTONDOWN:
             click_state["x"] = x
             click_state["y"] = y
@@ -111,20 +108,13 @@ def run_game(board_lines: list[str] | None = None) -> None:
         )
     )
 
-    # Keep the last rendered frame so we can re-display it on non-dirty frames.
-    last_frame = assets.board_img.copy()
-
     while True:
-        needs_redraw = False
-
         # --- Input handling ------------------------------------------------
-        # Snapshot the entire click state atomically before processing so a
-        # concurrent callback cannot deliver a partial update mid-frame.
         if click_state["clicked"]:
-            x = int(click_state["x"])          # type: ignore[arg-type]
-            y = int(click_state["y"])          # type: ignore[arg-type]
+            x = int(click_state["x"])           # type: ignore[arg-type]
+            y = int(click_state["y"])           # type: ignore[arg-type]
             action = str(click_state["action"])
-            click_state["clicked"] = False     # clear immediately after snapshot
+            click_state["clicked"] = False      # clear immediately after snapshot
             status_line = _process_pointer_action(
                 action=action,
                 x=x,
@@ -135,62 +125,38 @@ def run_game(board_lines: list[str] | None = None) -> None:
                 ui_controller=ui_controller,
                 current_status=status_line,
             )
-            needs_redraw = True
 
         # --- Simulation tick -----------------------------------------------
         delta_ms = clock.tick_ms()
         if delta_ms <= 0:
             delta_ms = DEFAULT_APP_CONFIG.runtime.fallback_frame_ms
         elapsed_ms += delta_ms
-
-        # Sample active_motions BEFORE the tick so that the final frame
-        # (piece arriving at destination) is always rendered even after
-        # active_motions becomes empty.
-        had_active_motions = bool(facade.get_snapshot().active_motions)
-
         facade.tick(delta_ms)
 
-        # Observer-driven components mark themselves dirty when they update.
-        if container.moves.dirty or container.scores.dirty or container.banner.dirty:
-            needs_redraw = True
-
-        # Redraw while pieces are moving or cooling down — both states
-        # require per-frame updates (animation interpolation and cooldown bar).
-        snapshot = facade.get_snapshot()
-        if had_active_motions or snapshot.active_motions or snapshot.cooldowns:
-            needs_redraw = True
-
-        # --- Selection change detection ------------------------------------
-        # Only mark dirty when the selected square *changes*, not every frame
-        # a piece is held selected.
+        # --- Render every frame --------------------------------------------
+        # Piece animation, cooldown bars, and sprite cycling all change
+        # continuously — rendering every frame is the correct approach here.
         pending = ui_controller.pending_src
         selected_pos = (
             (pending.row, pending.col) if pending is not None else None
         )
-        if selected_pos != _prev_selected:
-            _prev_selected = selected_pos
-            needs_redraw = True
-
-        # --- Render --------------------------------------------------------
         ctx = RenderContext(
             elapsed_ms=elapsed_ms,
             status_line=status_line,
             selected_pos=selected_pos,
             legal_targets=tuple(
-                (p.row, p.col)
-                for p in facade.get_legal_destinations(pending)
+                (p.row, p.col) for p in facade.get_legal_destinations(pending)
             )
             if pending is not None
             else (),
         )
 
-        if needs_redraw:
-            last_frame = renderer.draw(assets.board_img.copy(), ctx)
-            container.moves.dirty = False
-            container.scores.dirty = False
-            container.banner.dirty = False
+        frame = renderer.draw(assets.board_img.copy(), ctx)
+        container.moves.dirty = False
+        container.scores.dirty = False
+        container.banner.dirty = False
 
-        key = last_frame.show(window_title)
+        key = frame.show(window_title)
         if key in (ord("q"), ord("Q"), 27):
             break
         if cv2.getWindowProperty(window_title, cv2.WND_PROP_VISIBLE) < 1:
