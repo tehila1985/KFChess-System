@@ -25,14 +25,17 @@ class TestKingRule:
         return Board([". . .", ". wK .", ". . ."])
 
     def test_one_step_all_directions(self):
+        """Verify one step all directions."""
         b = self.board()
         for dr, dc in [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(-1,1),(1,-1),(1,1)]:
             assert self.rule.is_legal(pos(1,1), pos(1+dr,1+dc), b)
 
     def test_two_steps_invalid(self):
+        """Verify two steps invalid."""
         assert not self.rule.is_legal(pos(1,1), pos(1,3), self.board())
 
     def test_not_jumper(self):
+        """Verify not jumper."""
         assert not self.rule.is_jumper()
 
 
@@ -45,15 +48,19 @@ class TestRookRule:
         return Board(["wR . . .", ". . . .", ". . . ."])
 
     def test_horizontal(self):
+        """Verify horizontal."""
         assert self.rule.is_legal(pos(0,0), pos(0,3), self.board())
 
     def test_vertical(self):
+        """Verify vertical."""
         assert self.rule.is_legal(pos(0,0), pos(2,0), self.board())
 
     def test_diagonal_invalid(self):
+        """Verify diagonal invalid."""
         assert not self.rule.is_legal(pos(0,0), pos(2,2), self.board())
 
     def test_not_jumper(self):
+        """Verify not jumper."""
         assert not self.rule.is_jumper()
 
 
@@ -66,15 +73,19 @@ class TestBishopRule:
         return Board(["wB . .", ". . .", ". . ."])
 
     def test_diagonal(self):
+        """Verify diagonal."""
         assert self.rule.is_legal(pos(0,0), pos(2,2), self.board())
 
     def test_anti_diagonal(self):
+        """Verify anti diagonal."""
         assert self.rule.is_legal(pos(0,2), pos(2,0), self.board())
 
     def test_straight_invalid(self):
+        """Verify straight invalid."""
         assert not self.rule.is_legal(pos(0,0), pos(0,2), self.board())
 
     def test_not_jumper(self):
+        """Verify not jumper."""
         assert not self.rule.is_jumper()
 
 
@@ -87,15 +98,19 @@ class TestQueenRule:
         return Board(["wQ . .", ". . .", ". . ."])
 
     def test_horizontal(self):
+        """Verify horizontal."""
         assert self.rule.is_legal(pos(0,0), pos(0,2), self.board())
 
     def test_vertical(self):
+        """Verify vertical."""
         assert self.rule.is_legal(pos(0,0), pos(2,0), self.board())
 
     def test_diagonal(self):
+        """Verify diagonal."""
         assert self.rule.is_legal(pos(0,0), pos(2,2), self.board())
 
     def test_invalid_l_shape(self):
+        """Verify invalid l shape."""
         assert not self.rule.is_legal(pos(0,0), pos(1,2), self.board())
 
 
@@ -108,18 +123,22 @@ class TestKnightRule:
         return Board(["wN . . .", ". . . .", ". . . ."])
 
     def test_l_shapes(self):
+        """Verify l shapes."""
         for dr, dc in [(2,1),(2,-1),(-2,1),(-2,-1),(1,2),(1,-2),(-1,2),(-1,-2)]:
             r, c = 2 + dr, 2 + dc
             b = Board([". . . .", ". . . .", ". . wN .", ". . . ."])
             assert self.rule.is_legal(pos(2,2), pos(r,c), b)
 
     def test_straight_invalid(self):
+        """Verify straight invalid."""
         assert not self.rule.is_legal(pos(0,0), pos(0,2), self.board())
 
     def test_is_jumper(self):
+        """Verify is jumper."""
         assert self.rule.is_jumper()
 
     def test_jumps_over_pieces(self):
+        """Verify jumps over pieces."""
         b = Board(["wN wP wP .", ". . . .", ". . . ."])
         # knight at (0,0) to (2,1) — pieces in the way don't matter
         assert self.rule.is_legal(pos(0,0), pos(2,1), b)
@@ -131,43 +150,53 @@ class TestPawnRule:
     rule = PawnRule()
 
     def test_white_one_step_forward(self):
+        """Verify white one step forward."""
         b = Board([". . .", ". wP .", ". . ."])
         assert self.rule.is_legal(pos(1,1), pos(0,1), b)
 
     def test_white_cannot_move_backward(self):
+        """Verify white cannot move backward."""
         b = Board([". . .", ". wP .", ". . ."])
         assert not self.rule.is_legal(pos(1,1), pos(2,1), b)
 
     def test_white_double_step_from_start(self):
+        """Verify white double step from start."""
         # 4-row board: white start row is rows-2 = 2
         b = Board([". . .", ". . .", ". wP .", ". . ."])
         assert self.rule.is_legal(pos(2,1), pos(0,1), b)
 
     def test_white_double_step_blocked(self):
+        """Verify white double step blocked."""
         b = Board([". . .", ". wR .", ". wP .", ". . ."])
         assert not self.rule.is_legal(pos(2,1), pos(0,1), b)
 
     def test_white_double_step_not_from_start(self):
+        """Verify white double step not from start."""
         b = Board([". . .", ". . .", ". wP .", ". . .", ". . ."])
         assert not self.rule.is_legal(pos(2,1), pos(0,1), b)
 
     def test_black_one_step_forward(self):
+        """Verify black one step forward."""
         b = Board([". bP .", ". . .", ". . ."])
         assert self.rule.is_legal(pos(0,1), pos(1,1), b)
 
     def test_black_double_step_from_start(self):
+        """Verify black double step from start."""
         b = Board([". . .", ". bP .", ". . .", ". . ."])
         assert self.rule.is_legal(pos(1,1), pos(3,1), b)
 
     def test_white_diagonal_capture(self):
+        """Verify white diagonal capture."""
         b = Board(["bR . .", ". wP .", ". . ."])
         assert self.rule.is_legal(pos(1,1), pos(0,0), b)
 
     def test_cannot_capture_friendly(self):
+        """Verify cannot capture friendly."""
         b = Board(["wR . .", ". wP .", ". . ."])
         assert not self.rule.is_legal(pos(1,1), pos(0,0), b)
 
     def test_cannot_capture_forward(self):
+        """Verify cannot capture forward."""
         # bR directly in front of wP — pawn cannot capture straight ahead
         b = Board([". bR .", ". wP .", ". . ."])
         assert not self.rule.is_legal(pos(1,1), pos(0,1), b)
@@ -179,44 +208,54 @@ class TestRuleEngine:
     engine = RuleEngine()
 
     def test_ok_rook_move(self):
+        """Verify ok rook move."""
         b = Board(["wR . . ."])
         assert self.engine.validate_move(b, move(0,0,0,3)) == MoveStatus.OK
 
     def test_outside_board_src(self):
+        """Verify outside board src."""
         b = Board(["wR . ."])
         assert self.engine.validate_move(b, move(-1,0,0,0)) == MoveStatus.OUTSIDE_BOARD
 
     def test_outside_board_dst(self):
+        """Verify outside board dst."""
         b = Board(["wR . ."])
         assert self.engine.validate_move(b, move(0,0,0,5)) == MoveStatus.OUTSIDE_BOARD
 
     def test_empty_source(self):
+        """Verify empty source."""
         b = Board([". . ."])
         assert self.engine.validate_move(b, move(0,0,0,2)) == MoveStatus.EMPTY_SOURCE
 
     def test_friendly_destination(self):
+        """Verify friendly destination."""
         b = Board(["wR . wB"])
         assert self.engine.validate_move(b, move(0,0,0,2)) == MoveStatus.FRIENDLY_DESTINATION
 
     def test_illegal_piece_move_rook_diagonal(self):
+        """Verify illegal piece move rook diagonal."""
         b = Board(["wR . .", ". . .", ". . ."])
         assert self.engine.validate_move(b, move(0,0,2,2)) == MoveStatus.ILLEGAL_PIECE_MOVE
 
     def test_illegal_piece_move_path_blocked(self):
+        """Verify illegal piece move path blocked."""
         b = Board(["wR wP . ."])
         # rook tries to pass through wP
         assert self.engine.validate_move(b, move(0,0,0,3)) == MoveStatus.ILLEGAL_PIECE_MOVE
 
     def test_knight_jumps_over_pieces(self):
+        """Verify knight jumps over pieces."""
         b = Board(["wN wP wP .", ". . . .", ". . . ."])
         # knight at (0,0) to (2,1) — valid L-shape, jumps over blockers
         assert self.engine.validate_move(b, move(0,0,2,1)) == MoveStatus.OK
 
     def test_capture_enemy_is_ok(self):
+        """Verify capture enemy is ok."""
         b = Board(["wR . bR"])
         assert self.engine.validate_move(b, move(0,0,0,2)) == MoveStatus.OK
 
     def test_engine_does_not_modify_board(self):
+        """Verify engine does not modify board."""
         b = Board(["wR . bR"])
         before = [row[:] for row in b._grid]
         self.engine.validate_move(b, move(0,0,0,2))

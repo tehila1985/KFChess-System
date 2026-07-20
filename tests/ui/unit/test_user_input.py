@@ -11,6 +11,7 @@ class _ControllerStub:
 
 
 def test_mouse_controller_delegates_to_controller() -> None:
+    """Verify mouse controller delegates to controller."""
     controller = _ControllerStub()
     mouse = MouseController(controller)
 

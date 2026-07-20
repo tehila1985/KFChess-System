@@ -21,10 +21,12 @@ WP = Piece("w", "P")   # white pawn
 
 class TestActiveMotion:
     def test_end_time(self):
+        """Verify end time."""
         m = ActiveMotion(WR, pos(0, 0), pos(0, 3), start_time=100, duration=500)
         assert m.end_time == 600
 
     def test_frozen(self):
+        """Verify frozen."""
         m = ActiveMotion(WR, pos(0, 0), pos(0, 3), start_time=0, duration=1000)
         with pytest.raises(Exception):
             m.duration = 999  # type: ignore
@@ -34,24 +36,28 @@ class TestActiveMotion:
 
 class TestStartMotion:
     def test_clears_source_immediately(self):
+        """Verify clears source immediately."""
         b = Board(["wR . ."])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
         assert b.is_empty(pos(0, 0))
 
     def test_destination_not_yet_set(self):
+        """Verify destination not yet set."""
         b = Board(["wR . ."])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
         assert b.is_empty(pos(0, 2))
 
     def test_motion_registered(self):
+        """Verify motion registered."""
         b = Board(["wR . ."])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
         assert len(arb.active_motions) == 1
 
     def test_multiple_motions_registered(self):
+        """Verify multiple motions registered."""
         b = Board(["wR . bR"])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 1), duration=500)
@@ -63,6 +69,7 @@ class TestStartMotion:
 
 class TestAdvanceTime:
     def test_no_completion_before_duration(self):
+        """Verify no completion before duration."""
         b = Board(["wR . ."])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
@@ -71,6 +78,7 @@ class TestAdvanceTime:
         assert len(arb.active_motions) == 1
 
     def test_completes_exactly_at_duration(self):
+        """Verify completes exactly at duration."""
         b = Board(["wR . ."])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
@@ -80,6 +88,7 @@ class TestAdvanceTime:
         assert result[0].dst == pos(0, 2)
 
     def test_piece_placed_on_board_after_completion(self):
+        """Verify piece placed on board after completion."""
         b = Board(["wR . ."])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
@@ -87,6 +96,7 @@ class TestAdvanceTime:
         assert b.get_piece(pos(0, 2)) == WR
 
     def test_motion_removed_from_active_after_completion(self):
+        """Verify motion removed from active after completion."""
         b = Board(["wR . ."])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
@@ -94,6 +104,7 @@ class TestAdvanceTime:
         assert arb.active_motions == []
 
     def test_clock_accumulates_across_calls(self):
+        """Verify clock accumulates across calls."""
         b = Board(["wR . ."])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
@@ -104,6 +115,7 @@ class TestAdvanceTime:
         assert arb.active_motions == []   # now done
 
     def test_current_time_updated(self):
+        """Verify current time updated."""
         b = Board(["wR . ."])
         arb = RealTimeArbiter(b)
         arb.advance_time(300)
@@ -115,6 +127,7 @@ class TestAdvanceTime:
 
 class TestCaptureOnArrival:
     def test_capture_returns_captured_piece(self):
+        """Verify capture returns captured piece."""
         b = Board(["wR . bR"])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
@@ -122,6 +135,7 @@ class TestCaptureOnArrival:
         assert result[0].captured == BR
 
     def test_captured_piece_replaced_on_board(self):
+        """Verify captured piece replaced on board."""
         b = Board(["wR . bR"])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
@@ -129,6 +143,7 @@ class TestCaptureOnArrival:
         assert b.get_piece(pos(0, 2)) == WR
 
     def test_no_capture_returns_none(self):
+        """Verify no capture returns none."""
         b = Board(["wR . ."])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
@@ -136,6 +151,7 @@ class TestCaptureOnArrival:
         assert result[0].captured is None
 
     def test_king_capture_detected(self):
+        """Verify king capture detected."""
         b = Board(["wR . bK"])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
@@ -147,6 +163,7 @@ class TestCaptureOnArrival:
 
 class TestHeadToHead:
     def test_earlier_starter_wins(self):
+        """Verify earlier starter wins."""
         # WR starts at t=0, BR starts at t=100 — WR wins
         b = Board(["wR . bR"])
         arb = RealTimeArbiter(b)
@@ -158,6 +175,7 @@ class TestHeadToHead:
         assert result[0].piece == WR
 
     def test_loser_disappears_from_board(self):
+        """Verify loser disappears from board."""
         b = Board(["wR . bR"])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 2), duration=1000)
@@ -168,6 +186,7 @@ class TestHeadToHead:
         assert b.get_piece(pos(0, 0)) is None
 
     def test_simultaneous_start_first_registered_wins(self):
+        """Verify simultaneous start first registered wins."""
         # Both start at t=0 with same duration — first registered wins
         b = Board(["wR . bR"])
         arb = RealTimeArbiter(b)
@@ -182,6 +201,7 @@ class TestHeadToHead:
 
 class TestIndependentMotions:
     def test_two_motions_both_complete(self):
+        """Verify two motions both complete."""
         b = Board(["wR . . bR"])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 1), duration=500)
@@ -190,6 +210,7 @@ class TestIndependentMotions:
         assert len(result) == 2
 
     def test_two_motions_different_durations(self):
+        """Verify two motions different durations."""
         b = Board(["wR . . bR"])
         arb = RealTimeArbiter(b)
         arb.start_motion(WR, pos(0, 0), pos(0, 1), duration=500)
@@ -200,6 +221,7 @@ class TestIndependentMotions:
         assert len(r2) == 1 and r2[0].piece == BR
 
     def test_arbiter_is_sole_board_modifier(self):
+        """Verify arbiter is sole board modifier."""
         # Board state before any advance should only reflect start_motion clears
         b = Board(["wR . bR"])
         arb = RealTimeArbiter(b)

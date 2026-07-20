@@ -15,6 +15,7 @@ def _facade(board_lines: list[str]) -> GameFacade:
 
 
 def test_request_move_publishes_move_accepted() -> None:
+    """Verify request move publishes move accepted."""
     facade = _facade(["wR . . ."])
     events: list[MoveAccepted] = []
     facade.subject.subscribe(MoveAccepted, lambda event: events.append(event))
@@ -31,6 +32,7 @@ def test_request_move_publishes_move_accepted() -> None:
 
 
 def test_request_move_publishes_move_rejected() -> None:
+    """Verify request move publishes move rejected."""
     facade = _facade(["wR . .", ". . .", ". . ."])
     events: list[MoveRejected] = []
     facade.subject.subscribe(MoveRejected, lambda event: events.append(event))
@@ -43,6 +45,7 @@ def test_request_move_publishes_move_rejected() -> None:
 
 
 def test_tick_publishes_game_over_once() -> None:
+    """Verify tick publishes game over once."""
     facade = _facade(["wR . bK"])
     events: list[GameOver] = []
     facade.subject.subscribe(GameOver, lambda event: events.append(event))

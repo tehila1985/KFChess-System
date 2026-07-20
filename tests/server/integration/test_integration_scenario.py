@@ -20,6 +20,9 @@ from ui.presentation.text_renderer import TextRenderer
 
 # ── shared wiring helper ───────────────────────────────────────────────
 
+
+# ── shared wiring helper ───────────────────────────────────────────────
+
 CELL = 100   # pixels per cell used in every scenario
 
 def build(board_lines: list[str]):
@@ -55,6 +58,7 @@ class TestScenarioRookMove:
     """
 
     def test_rook_moves_to_destination(self):
+        """Verify rook moves to destination."""
         engine, ctrl, renderer = build(["wR . . ."])
 
         print_step("INITIAL STATE", renderer, engine)
@@ -96,6 +100,7 @@ class TestScenarioCapture:
     """
 
     def test_capture_updates_score(self):
+        """Verify capture updates score."""
         engine, ctrl, renderer = build(["wR . . bR"])
 
         ctrl.on_click(*px(0, 0))
@@ -119,6 +124,7 @@ class TestScenarioKingCapture:
     """
 
     def test_king_capture_ends_game(self):
+        """Verify king capture ends game."""
         engine, ctrl, renderer = build(["wR . bK"])
 
         ctrl.on_click(*px(0, 0))
@@ -132,6 +138,7 @@ class TestScenarioKingCapture:
         assert "GAME OVER" in renderer.render(snap)
 
     def test_no_moves_accepted_after_game_over(self):
+        """Verify no moves accepted after game over."""
         engine, ctrl, renderer = build(["wR . bK"])
         ctrl.on_click(*px(0, 0))
         ctrl.on_click(*px(2, 0))
@@ -152,6 +159,7 @@ class TestScenarioPieceBusy:
     """
 
     def test_busy_piece_cannot_move_again(self):
+        """Verify busy piece cannot move again."""
         engine, ctrl, renderer = build(["wR . . ."])
 
         ctrl.on_click(*px(0, 0))
@@ -176,6 +184,7 @@ class TestScenarioConcurrentMoves:
     """
 
     def test_two_pieces_move_concurrently(self):
+        """Verify two pieces move concurrently."""
         engine, ctrl, renderer = build(["wR . . bR", ". . . ."])
 
         ctrl.on_click(*px(0, 0))
@@ -208,6 +217,7 @@ class TestScenarioPawnMove:
     """
 
     def test_pawn_arrives_after_500ms(self):
+        """Verify pawn arrives after 500ms."""
         engine, ctrl, renderer = build([
             ". . .",
             ". . .",

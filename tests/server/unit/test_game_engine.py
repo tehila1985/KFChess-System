@@ -23,31 +23,38 @@ def make_engine(board_lines: list[str]) -> GameEngine:
 
 class TestRequestMove:
     def test_accepted_valid_move(self):
+        """Verify accepted valid move."""
         eng = make_engine(["wR . . ."])
         assert eng.request_move(pos(0, 0), pos(0, 3)) == RequestMoveResult.ACCEPTED
 
     def test_empty_source(self):
+        """Verify empty source."""
         eng = make_engine([". . ."])
         assert eng.request_move(pos(0, 0), pos(0, 2)) == RequestMoveResult.EMPTY_SOURCE
 
     def test_outside_board(self):
+        """Verify outside board."""
         eng = make_engine(["wR . ."])
         assert eng.request_move(pos(0, 0), pos(0, 9)) == RequestMoveResult.OUTSIDE_BOARD
 
     def test_friendly_destination(self):
+        """Verify friendly destination."""
         eng = make_engine(["wR . wB"])
         assert eng.request_move(pos(0, 0), pos(0, 2)) == RequestMoveResult.FRIENDLY_DESTINATION
 
     def test_illegal_piece_move(self):
+        """Verify illegal piece move."""
         eng = make_engine(["wR . .", ". . .", ". . ."])
         assert eng.request_move(pos(0, 0), pos(2, 2)) == RequestMoveResult.ILLEGAL_PIECE_MOVE
 
     def test_piece_busy_rejected(self):
+        """Verify piece busy rejected."""
         eng = make_engine(["wR . . ."])
         eng.request_move(pos(0, 0), pos(0, 3))          # accepted, now in motion
         assert eng.request_move(pos(0, 0), pos(0, 1)) == RequestMoveResult.PIECE_BUSY
 
     def test_piece_on_cooldown_rejected_until_timeout(self):
+        """Verify piece on cooldown rejected until timeout."""
         eng = make_engine(["wR . ."])
         eng.request_move(pos(0, 0), pos(0, 1))
         eng.tick(1000)  # arrival
@@ -56,6 +63,7 @@ class TestRequestMove:
         assert eng.request_move(pos(0, 1), pos(0, 2)) == RequestMoveResult.ACCEPTED
 
     def test_game_over_rejects_all_moves(self):
+        """Verify game over rejects all moves."""
         eng = make_engine(["wR . bK"])
         eng.request_move(pos(0, 0), pos(0, 2))
         eng.tick(2000)                                   # 2 cells * 1000ms
@@ -66,12 +74,14 @@ class TestRequestMove:
 
 class TestTick:
     def test_piece_not_on_dst_before_tick(self):
+        """Verify piece not on dst before tick."""
         eng = make_engine(["wR . . ."])
         eng.request_move(pos(0, 0), pos(0, 3))
         snap = eng.get_snapshot()
         assert snap.grid[0][3] == "."
 
     def test_piece_arrives_after_full_duration(self):
+        """Verify piece arrives after full duration."""
         eng = make_engine(["wR . . ."])
         eng.request_move(pos(0, 0), pos(0, 3))
         eng.tick(3000)                                   # 3 cells * 1000ms
@@ -79,6 +89,7 @@ class TestTick:
         assert snap.grid[0][3] == "wR"
 
     def test_partial_tick_does_not_complete_motion(self):
+        """Verify partial tick does not complete motion."""
         eng = make_engine(["wR . . ."])
         eng.request_move(pos(0, 0), pos(0, 3))
         eng.tick(500)
@@ -87,6 +98,7 @@ class TestTick:
         assert len(snap.active_motions) == 1
 
     def test_accumulated_ticks_complete_motion(self):
+        """Verify accumulated ticks complete motion."""
         eng = make_engine(["wR . . ."])
         eng.request_move(pos(0, 0), pos(0, 3))
         eng.tick(1500)
@@ -100,6 +112,7 @@ class TestTick:
 
 class TestCapture:
     def test_score_updated_on_capture(self):
+        """Verify score updated on capture."""
         eng = make_engine(["wR . bR"])
         eng.request_move(pos(0, 0), pos(0, 2))
         eng.tick(2000)                                   # 2 cells * 1000ms
@@ -107,6 +120,7 @@ class TestCapture:
         assert dict(snap.scores)["w"] == 5
 
     def test_no_score_change_on_empty_arrival(self):
+        """Verify no score change on empty arrival."""
         eng = make_engine(["wR . ."])
         eng.request_move(pos(0, 0), pos(0, 2))
         eng.tick(1000)
@@ -114,6 +128,7 @@ class TestCapture:
         assert dict(snap.scores)["w"] == 0
 
     def test_king_capture_ends_game(self):
+        """Verify king capture ends game."""
         eng = make_engine(["wR . bK"])
         eng.request_move(pos(0, 0), pos(0, 2))
         eng.tick(2000)                                   # 2 cells * 1000ms
@@ -121,12 +136,14 @@ class TestCapture:
         assert snap.game_over is True
 
     def test_king_capture_sets_winner(self):
+        """Verify king capture sets winner."""
         eng = make_engine(["wR . bK"])
         eng.request_move(pos(0, 0), pos(0, 2))
         eng.tick(2000)
         assert eng.get_snapshot().winner == "w"
 
     def test_black_captures_white_king(self):
+        """Verify black captures white king."""
         eng = make_engine(["wK . bR"])
         eng.request_move(pos(0, 2), pos(0, 0))
         eng.tick(2000)
@@ -135,6 +152,7 @@ class TestCapture:
         assert snap.winner == "b"
 
     def test_multiple_captures_accumulate_score(self):
+        """Verify multiple captures accumulate score."""
         eng = make_engine(["wR . bR . bB"])
         eng.request_move(pos(0, 0), pos(0, 2))
         eng.tick(2000)                                   # 2 cells
@@ -149,6 +167,7 @@ class TestCapture:
 
 class TestGetSnapshot:
     def test_snapshot_is_frozen(self):
+        """Verify snapshot is frozen."""
         eng = make_engine(["wR . ."])
         snap = eng.get_snapshot()
         assert isinstance(snap, GameSnapshot)
@@ -156,12 +175,14 @@ class TestGetSnapshot:
             snap.game_over = True  # type: ignore
 
     def test_snapshot_grid_is_immutable_tuple(self):
+        """Verify snapshot grid is immutable tuple."""
         eng = make_engine(["wR . ."])
         snap = eng.get_snapshot()
         assert isinstance(snap.grid, tuple)
         assert isinstance(snap.grid[0], tuple)
 
     def test_snapshot_scores_is_read_only(self):
+        """Verify snapshot scores is read only."""
         eng = make_engine(["wR . ."])
         snap = eng.get_snapshot()
         with pytest.raises(Exception):
@@ -169,6 +190,7 @@ class TestGetSnapshot:
         assert dict(eng.get_snapshot().scores)["w"] == 0
 
     def test_snapshot_reflects_active_motions(self):
+        """Verify snapshot reflects active motions."""
         eng = make_engine(["wR . . ."])
         eng.request_move(pos(0, 0), pos(0, 3))
         snap = eng.get_snapshot()
@@ -179,12 +201,14 @@ class TestGetSnapshot:
         assert m.dst   == pos(0, 3)
 
     def test_snapshot_no_active_motions_after_completion(self):
+        """Verify snapshot no active motions after completion."""
         eng = make_engine(["wR . . ."])
         eng.request_move(pos(0, 0), pos(0, 3))
         eng.tick(3000)                                   # 3 cells * 1000ms
         assert eng.get_snapshot().active_motions == ()
 
     def test_initial_snapshot_not_game_over(self):
+        """Verify initial snapshot not game over."""
         eng = make_engine(["wK . bK"])
         snap = eng.get_snapshot()
         assert snap.game_over is False
@@ -193,17 +217,20 @@ class TestGetSnapshot:
 
 class TestLegalDestinations:
     def test_returns_rook_line_moves(self):
+        """Verify returns rook line moves."""
         eng = make_engine(["wR . . ."])
         legal = set(eng.get_legal_destinations(pos(0, 0)))
         assert legal == {pos(0, 1), pos(0, 2), pos(0, 3)}
 
     def test_returns_empty_when_piece_on_cooldown(self):
+        """Verify returns empty when piece on cooldown."""
         eng = make_engine(["wR . ."])
         eng.request_move(pos(0, 0), pos(0, 1))
         eng.tick(1000)
         assert eng.get_legal_destinations(pos(0, 1)) == ()
 
     def test_returns_empty_when_source_empty(self):
+        """Verify returns empty when source empty."""
         eng = make_engine([". . ."])
         assert eng.get_legal_destinations(pos(0, 0)) == ()
 
@@ -212,12 +239,14 @@ class TestLegalDestinations:
 
 class TestDependencyInjection:
     def test_accepts_injected_dependencies(self):
+        """Verify accepts injected dependencies."""
         board   = Board(["wR . ."])
         arbiter = RealTimeArbiter(board)
         engine  = GameEngine(board, RuleEngine(), arbiter)
         assert engine.get_snapshot().game_over is False
 
     def test_shared_board_reflects_engine_changes(self):
+        """Verify shared board reflects engine changes."""
         board   = Board(["wR . ."])
         arbiter = RealTimeArbiter(board)
         engine  = GameEngine(board, RuleEngine(), arbiter)

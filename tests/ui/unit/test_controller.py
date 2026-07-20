@@ -17,6 +17,7 @@ def _build_controller(board_lines: list[str]) -> tuple[Controller, GameEngine]:
 
 
 def test_first_click_on_empty_cell_does_not_select_source() -> None:
+    """Verify first click on empty cell does not select source."""
     controller, _engine = _build_controller([
         "wR . .",
         ". . .",
@@ -30,6 +31,7 @@ def test_first_click_on_empty_cell_does_not_select_source() -> None:
 
 
 def test_stale_selection_is_recovered_instead_of_requesting_empty_source() -> None:
+    """Verify stale selection is recovered instead of requesting empty source."""
     controller, engine = _build_controller(["wR . ."])
 
     # Select rook and start a move.
@@ -57,6 +59,7 @@ def test_stale_selection_is_recovered_instead_of_requesting_empty_source() -> No
 
 
 def test_click_on_frozen_piece_does_not_store_pending_move() -> None:
+    """Verify click on frozen piece does not store pending move."""
     controller, engine = _build_controller(["wR . ."])
 
     # Move rook to the last cell.

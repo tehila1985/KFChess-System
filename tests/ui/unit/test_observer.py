@@ -7,6 +7,7 @@ class SampleEvent:
 
 
 def test_publish_calls_subscriber() -> None:
+    """Verify publish calls subscriber."""
     bus = EventBus()
     seen: list[int] = []
 
@@ -17,6 +18,7 @@ def test_publish_calls_subscriber() -> None:
 
 
 def test_unsubscribe_stops_notifications() -> None:
+    """Verify unsubscribe stops notifications."""
     bus = EventBus()
     seen: list[int] = []
 
@@ -28,6 +30,7 @@ def test_unsubscribe_stops_notifications() -> None:
 
 
 def test_multiple_subscribers_receive_same_event() -> None:
+    """Verify multiple subscribers receive same event."""
     bus = EventBus()
     seen_a: list[int] = []
     seen_b: list[int] = []

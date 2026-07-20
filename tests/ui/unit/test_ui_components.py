@@ -13,6 +13,7 @@ from ui.state.outcome import ActionOutcome
 
 
 def test_moves_feed_appends_on_move_accepted() -> None:
+    """Verify moves feed appends on move accepted."""
     bus = EventBus()
     feed = MovesFeed()
     feed.bind(bus)
@@ -25,6 +26,7 @@ def test_moves_feed_appends_on_move_accepted() -> None:
 
 
 def test_score_panel_counts_captures_by_side() -> None:
+    """Verify score panel counts captures by side."""
     bus = EventBus()
     panel = ScorePanel()
     panel.bind(bus)
@@ -36,6 +38,7 @@ def test_score_panel_counts_captures_by_side() -> None:
     assert panel.white_captures == 1
 
 def test_score_panel_updates_after_real_capture_from_facade_tick() -> None:
+    """Verify score panel updates after real capture from facade tick."""
     board = Board(["wR . . bR"])
     engine = GameEngine(board, RuleEngine(), RealTimeArbiter(board))
     facade = GameFacade(engine)
@@ -52,6 +55,7 @@ def test_score_panel_updates_after_real_capture_from_facade_tick() -> None:
 
 
 def test_banner_updates_on_game_over() -> None:
+    """Verify banner updates on game over."""
     bus = EventBus()
     banner = Banner()
     banner.bind(bus)

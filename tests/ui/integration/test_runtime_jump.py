@@ -1,6 +1,9 @@
 from ui.runtime.game_loop import LEFT_ACTION, RIGHT_ACTION, _process_pointer_action
 
 
+# ── runtime pointer routing ───────────────────────────────────────────
+
+
 class _MapperStub:
     def __init__(self, pos):
         self._pos = pos
@@ -36,6 +39,7 @@ class _ControllerStub:
 
 
 def test_right_click_requests_jump_on_mapped_square() -> None:
+    """Verify right click requests jump on mapped square."""
     mapper = _MapperStub(pos="p")
     facade = _FacadeStub()
     controller = _ControllerStub(result=None)
@@ -57,6 +61,7 @@ def test_right_click_requests_jump_on_mapped_square() -> None:
 
 
 def test_right_click_outside_board_keeps_status_and_skips_jump() -> None:
+    """Verify right click outside board keeps status and skips jump."""
     mapper = _MapperStub(pos=None)
     facade = _FacadeStub()
     controller = _ControllerStub(result=None)
@@ -78,6 +83,7 @@ def test_right_click_outside_board_keeps_status_and_skips_jump() -> None:
 
 
 def test_left_click_still_routes_to_move_controller() -> None:
+    """Verify left click still routes to move controller."""
     mapper = _MapperStub(pos=None)
     facade = _FacadeStub()
     controller = _ControllerStub(result=_ResultStub(success=True))

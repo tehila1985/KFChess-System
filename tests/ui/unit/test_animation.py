@@ -5,18 +5,22 @@ from ui.animation.piece_animator import PieceAnimator
 
 
 def test_interpolate_pixel_clamps_low() -> None:
+    """Verify interpolate pixel clamps low."""
     assert interpolate_pixel((0, 0), (10, 10), -1.0) == (0, 0)
 
 
 def test_interpolate_pixel_clamps_high() -> None:
+    """Verify interpolate pixel clamps high."""
     assert interpolate_pixel((0, 0), (10, 10), 2.0) == (10, 10)
 
 
 def test_interpolate_pixel_midpoint() -> None:
+    """Verify interpolate pixel midpoint."""
     assert interpolate_pixel((0, 0), (10, 20), 0.5) == (5, 10)
 
 
 def test_piece_animator_tick_and_state_reset() -> None:
+    """Verify piece animator tick and state reset."""
     animator = PieceAnimator(token="wR")
     animator.tick(120)
     assert animator.elapsed_ms == 120
@@ -27,6 +31,7 @@ def test_piece_animator_tick_and_state_reset() -> None:
 
 
 def test_animation_clock_uses_delta_ms(monkeypatch) -> None:
+    """Verify animation clock uses delta ms."""
     points = iter([1.0, 1.015, 1.035])
     monkeypatch.setattr(animation_clock_module, "perf_counter", lambda: next(points))
 
