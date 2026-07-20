@@ -12,6 +12,10 @@ from ui.resources.asset_loader import load_ui_assets
 from ui.state.game_events import MoveAccepted, MoveRejected
 
 
+LEFT_ACTION = DEFAULT_APP_CONFIG.input.left_action
+RIGHT_ACTION = DEFAULT_APP_CONFIG.input.right_action
+
+
 def _process_pointer_action(
     *,
     action: str,
@@ -24,10 +28,9 @@ def _process_pointer_action(
     current_status: str,
 ) -> str:
     """Routes pointer action to move or jump flow and returns next status line."""
-    input_config = DEFAULT_APP_CONFIG.input
     board_x = x - sidebar_width
 
-    if action == input_config.right_action:
+    if action == RIGHT_ACTION:
         pos = mapper.to_position(board_x, y)
         if pos is None:
             return current_status
@@ -60,19 +63,18 @@ def run_game(board_lines: list[str] | None = None) -> None:
     clock = AnimationClock()
     elapsed_ms = 0
     ui_dirty = DirtyState(dirty=True)
-    input_config = DEFAULT_APP_CONFIG.input
 
     def _on_mouse(event: int, x: int, y: int, _flags: int, _param: object) -> None:
         if event == cv2.EVENT_LBUTTONDOWN:
             click_state["x"] = x
             click_state["y"] = y
             click_state["clicked"] = True
-            click_state["action"] = input_config.left_action
+            click_state["action"] = LEFT_ACTION
         elif event == cv2.EVENT_RBUTTONDOWN:
             click_state["x"] = x
             click_state["y"] = y
             click_state["clicked"] = True
-            click_state["action"] = input_config.right_action
+            click_state["action"] = RIGHT_ACTION
 
     window_title = DEFAULT_UI_CONFIG.window_title
     cv2.namedWindow(window_title)

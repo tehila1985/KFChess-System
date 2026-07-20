@@ -1,4 +1,4 @@
-from engine.game_engine import GameSnapshot
+from server.game_engine import GameSnapshot
 
 
 class TextRenderer:

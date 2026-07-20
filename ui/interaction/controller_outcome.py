@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from engine.game_engine import RequestMoveResult
+from server.game_engine import RequestMoveResult
 from ui.interaction.controller import Controller
 from ui.state.outcome import ActionOutcome
 

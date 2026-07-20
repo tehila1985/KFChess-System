@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from engine.game_engine import GameEngine, MotionSummary, RequestMoveResult
-from engine.models.position import Position
+from server.game_engine import GameEngine, MotionSummary, RequestMoveResult
+from server.models.position import Position
 from ui.state.game_events import GameOver, MoveAccepted, MoveRejected, PieceArrived, PieceCaptured
 from ui.state.outcome import ActionOutcome
 from ui.state.observer import EventBus, Subject

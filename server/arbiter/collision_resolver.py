@@ -1,5 +1,5 @@
 from __future__ import annotations
-from engine.arbiter.motion import ActiveMotion, CompletedMotion
+from server.arbiter.motion import ActiveMotion, CompletedMotion
 
 
 class CollisionResolver:

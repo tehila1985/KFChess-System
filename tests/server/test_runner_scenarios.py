@@ -4,7 +4,7 @@ Input is fed via StringIO; output is captured via capsys.
 """
 import io
 import pytest
-from engine.game_runner import GameRunner
+from server.game_runner import GameRunner
 
 
 def run(input_text: str, capsys) -> str:

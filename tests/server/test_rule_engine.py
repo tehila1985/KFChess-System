@@ -1,8 +1,8 @@
 import pytest
-from engine.models.board import Board
-from engine.models.move import Move
-from engine.models.position import Position
-from engine.rules.rule_engine import (
+from server.models.board import Board
+from server.models.move import Move
+from server.models.position import Position
+from server.rules.rule_engine import (
     RuleEngine, MoveStatus,
     KingRule, RookRule, BishopRule, QueenRule, KnightRule, PawnRule,
 )

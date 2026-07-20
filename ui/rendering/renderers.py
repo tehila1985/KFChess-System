@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from engine.config import DEFAULT_CONFIG
+from server.config import DEFAULT_CONFIG
 from ui.config.app_config import DEFAULT_APP_CONFIG
 from ui.animation import interpolate_pixel
 from ui.rendering.interfaces import IRenderer, RenderContext

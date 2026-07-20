@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from engine.models.board import Board
-from engine.models.piece import Piece
-from engine.models.position import Position
-from engine.config import GameConfig, DEFAULT_CONFIG
-from engine.arbiter.motion import ActiveMotion, CompletedMotion
-from engine.arbiter.collision_resolver import CollisionResolver
+from server.models.board import Board
+from server.models.piece import Piece
+from server.models.position import Position
+from server.config import GameConfig, DEFAULT_CONFIG
+from server.arbiter.motion import ActiveMotion, CompletedMotion
+from server.arbiter.collision_resolver import CollisionResolver
 
 __all__ = ["ActiveMotion", "CompletedMotion", "RealTimeArbiter"]
 

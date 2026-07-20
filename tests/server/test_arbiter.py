@@ -1,8 +1,8 @@
 import pytest
-from engine.models.board import Board
-from engine.models.piece import Piece
-from engine.models.position import Position
-from engine.arbiter.real_time_arbiter import ActiveMotion, CompletedMotion, RealTimeArbiter
+from server.models.board import Board
+from server.models.piece import Piece
+from server.models.position import Position
+from server.arbiter.real_time_arbiter import ActiveMotion, CompletedMotion, RealTimeArbiter
 
 
 # ── helpers ────────────────────────────────────────────────────────────

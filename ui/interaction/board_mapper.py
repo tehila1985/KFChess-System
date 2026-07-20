@@ -1,6 +1,6 @@
 from typing import Optional
 
-from engine.models.position import Position
+from server.models.position import Position
 
 
 class BoardMapper:

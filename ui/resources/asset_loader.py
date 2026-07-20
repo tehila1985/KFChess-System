@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from ui.config.app_config import DEFAULT_APP_CONFIG, AppConfig
-from ui.config.ui_config import ASSETS_DIR
+from ui.config.ui_config import ASSETS_DIR, DEFAULT_UI_CONFIG
 from ui.vendor.img import Img
 
 

@@ -63,7 +63,7 @@ Important render features:
   - selecting same-color piece switches source,
   - frozen/cooldown piece selection can be ignored,
   - stale source selections are recovered safely.
-- Delegates all legality to engine/facade, no chess rules inside controller.
+- Delegates all legality to server/facade, no chess rules inside controller.
 - Jump is intentionally not part of controller state-machine and is handled as a runtime action.
 
 ### `ui/interaction/controller_outcome.py`
@@ -167,7 +167,7 @@ Important render features:
 All tests are now organized under `tests/` by domain.
 
 ### `tests/server/`
-Engine/server domain tests:
+Server domain tests:
 - Arbiter behavior
 - Engine request/tick/snapshot behavior
 - Rule engine and models
@@ -188,6 +188,6 @@ This split keeps responsibilities clear and helps run focused suites:
 
 ## Notes for Future Changes
 
-- If adding a new visual overlay, keep state derivation in engine/facade and draw only in `main.py`.
-- If adding new user interactions, keep coordinate logic in mapper/controller; keep rules in engine/rules.
+- If adding a new visual overlay, keep state derivation in server/facade and draw only in `main.py`.
+- If adding new user interactions, keep coordinate logic in mapper/controller; keep rules in server/rules.
 - If adding new side panel data, prefer observer events and small subscriber components.

@@ -1,4 +1,4 @@
-from engine.game_engine import RequestMoveResult
+from server.game_engine import RequestMoveResult
 from ui.interaction.controller_outcome import ControllerOutcomeAdapter
 from ui.state.outcome import ActionOutcome
 

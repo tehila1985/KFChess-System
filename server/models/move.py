@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from engine.models.position import Position
+from server.models.position import Position
 
 
 # Move represents a move request: from square src to square dst.

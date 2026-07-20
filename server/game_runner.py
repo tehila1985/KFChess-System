@@ -1,8 +1,8 @@
-from engine.game_engine import GameEngine
-from engine.rules.rule_engine import RuleEngine
-from engine.arbiter.real_time_arbiter import RealTimeArbiter
-from engine.models.board import Board
-from engine.config import BOARD_SECTION, COMMANDS_SECTION, PIXEL_TO_GRID_DIVISOR, EMPTY_CELL, WHITE, BLACK, DEFAULT_CONFIG
+from server.game_engine import GameEngine
+from server.rules.rule_engine import RuleEngine
+from server.arbiter.real_time_arbiter import RealTimeArbiter
+from server.models.board import Board
+from server.config import BOARD_SECTION, COMMANDS_SECTION, PIXEL_TO_GRID_DIVISOR, EMPTY_CELL, WHITE, BLACK, DEFAULT_CONFIG
 from ui.interaction.controller import Controller
 from ui.presentation.text_renderer import TextRenderer
 from ui.interaction.board_mapper import BoardMapper

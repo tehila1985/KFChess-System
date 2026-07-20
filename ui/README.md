@@ -19,7 +19,7 @@ This package contains a thin, decoupled UI architecture for Kung-Fu Chess.
 
 ## Design Rules
 
-- Keep game rules in `engine/`; UI modules must not re-implement rule logic.
+- Keep game rules in `server/`; UI modules must not re-implement rule logic.
 - Publish UI updates through events (`MoveAccepted`, `MoveRejected`, `PieceArrived`,
   `PieceCaptured`, `GameOver`).
 - Use only the provided `Img` API for graphical output.

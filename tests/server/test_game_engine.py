@@ -1,10 +1,10 @@
 import pytest
-from engine.models.board import Board
-from engine.models.piece import Piece
-from engine.models.position import Position
-from engine.rules.rule_engine import RuleEngine
-from engine.arbiter.real_time_arbiter import RealTimeArbiter
-from engine.game_engine import GameEngine, RequestMoveResult, GameSnapshot
+from server.models.board import Board
+from server.models.piece import Piece
+from server.models.position import Position
+from server.rules.rule_engine import RuleEngine
+from server.arbiter.real_time_arbiter import RealTimeArbiter
+from server.game_engine import GameEngine, RequestMoveResult, GameSnapshot
 
 
 # ── helpers ────────────────────────────────────────────────────────────

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from engine.arbiter.real_time_arbiter import RealTimeArbiter
-from engine.game_engine import GameEngine
-from engine.models.board import Board
-from engine.rules.rule_engine import RuleEngine
+from server.arbiter.real_time_arbiter import RealTimeArbiter
+from server.game_engine import GameEngine
+from server.models.board import Board
+from server.rules.rule_engine import RuleEngine
 from ui.interaction.board_mapper import BoardMapper
 from ui.interaction.controller import Controller
 from ui.state.game_facade import GameFacade

@@ -1,7 +1,7 @@
 from typing import Optional, Protocol
 
-from engine.game_engine import RequestMoveResult
-from engine.models.position import Position
+from server.game_engine import RequestMoveResult
+from server.models.position import Position
 from ui.interaction.board_mapper import BoardMapper
 
 

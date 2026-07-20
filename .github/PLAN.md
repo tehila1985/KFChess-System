@@ -198,7 +198,7 @@ scripted clicks) before moving to the next.
   it failed the course's official grading suite at the time. It was
   restored anyway, as an explicit, informed decision — see
   `server/config.py` (`COOLDOWN_MS`), `server/realtime/real_time_arbiter.py`
-  (`start_cooldown`/`is_on_cooldown`), and `server/engine/game_engine.py`.
+  (`start_cooldown`/`is_on_cooldown`), and `server/game_engine.py`.
   Needed zero changes on the `ui/` side — `GameFacade`/`Controller` already
   treat a cooldown rejection like any other illegal move.
 - **The `pieces3` custom-art skin** — see "Skins" above.
