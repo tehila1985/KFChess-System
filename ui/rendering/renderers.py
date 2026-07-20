@@ -50,6 +50,7 @@ class BoardRenderer(IRenderer):
     facade: object
     selection_overlay: Img
     legal_moves_overlay: Img
+    anim: object = None                          # GameAnimationController | None
     piece_config: object = DEFAULT_APP_CONFIG.pieces
 
     def _pick_piece_state(self, is_moving: bool, cooldown_end_ms: int | None, now_ms: int) -> str:
@@ -138,6 +139,10 @@ class BoardRenderer(IRenderer):
             sx = sc * cell_px + piece_padding
             sy = sr * cell_px + piece_padding
             self.selection_overlay.draw_on(board_frame, sx, sy)
+
+        # Apply animation overlays (capture flash, fade-in) on top of pieces.
+        if self.anim is not None:
+            self.anim.apply_to_board(board_frame)
 
         return board_frame
 

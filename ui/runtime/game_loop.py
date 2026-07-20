@@ -91,6 +91,7 @@ def run_game(board_lines: list[str] | None = None) -> None:
                 facade=facade,
                 selection_overlay=assets.selection_overlay,
                 legal_moves_overlay=assets.legal_moves_overlay,
+                anim=container.anim,
             ),
             HudRenderer(
                 panel_bg=assets.panel_bg,
@@ -126,6 +127,7 @@ def run_game(board_lines: list[str] | None = None) -> None:
             delta_ms = DEFAULT_APP_CONFIG.runtime.fallback_frame_ms
         elapsed_ms += delta_ms
         facade.tick(delta_ms)
+        container.anim.tick(delta_ms)
 
         # --- Render ---
         selected_pos = (

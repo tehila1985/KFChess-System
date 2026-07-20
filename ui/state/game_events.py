@@ -7,6 +7,12 @@ from engine.models.position import Position
 
 
 @dataclass(frozen=True)
+class GameStarted:
+    """Published once when the game begins (first tick)."""
+    pass
+
+
+@dataclass(frozen=True)
 class MoveAccepted:
     side: str
     piece_type: str

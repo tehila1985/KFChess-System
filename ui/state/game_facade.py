@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from engine.config import DEFAULT_CONFIG, KING
 from engine.game_engine import GameEngine, MotionSummary, RequestMoveResult
 from engine.models.position import Position
-from ui.state.game_events import GameOver, MoveAccepted, MoveRejected, PieceArrived, PieceCaptured
+from ui.state.game_events import GameOver, GameStarted, MoveAccepted, MoveRejected, PieceArrived, PieceCaptured
 from ui.state.outcome import ActionOutcome
 from ui.state.observer import EventBus, Subject
 
@@ -37,6 +37,7 @@ class GameFacade:
         self._engine = engine
         self._subject = subject or EventBus()
         self._published_game_over = False
+        self._published_game_started = False
 
     @property
     def subject(self) -> Subject:
@@ -74,6 +75,12 @@ class GameFacade:
         self._engine.request_jump(pos)
 
     def tick(self, delta_ms: int) -> None:
+        # Publish GameStarted on the very first tick — by this point all
+        # subscribers are bound (container wires them before the loop starts).
+        if not self._published_game_started:
+            self._published_game_started = True
+            self._subject.publish(GameStarted())
+
         before = self._freeze_active_motions()
         before_snapshot = self._engine.get_snapshot()
         self._engine.tick(delta_ms)

@@ -196,6 +196,37 @@ class UiThemeConfig:
 
 
 @dataclass(frozen=True)
+class UiSoundConfig:
+    """Paths to sound effect files, relative to assets_dir.
+
+    Any entry can be set to an empty string to disable that sound.
+    Files are loaded lazily — missing files are silently skipped.
+    """
+    enabled: bool = True
+    move_sound: str = "sounds/move.wav"
+    capture_sound: str = "sounds/capture.wav"
+    game_start_sound: str = "sounds/game_start.wav"
+    game_over_sound: str = "sounds/game_over.wav"
+
+
+@dataclass(frozen=True)
+class UiAnimationConfig:
+    """Timing (ms) for game-level overlay animations driven by pub/sub events."""
+
+    # Game-start fade-in: board fades from black to full brightness.
+    game_start_fade_in_ms: int = 800
+
+    # Game-over: winner banner pulses (scales up then holds).
+    game_over_hold_ms: int = 5000     # how long the banner is fully visible
+
+    # Capture flash: brief white flash on the destination cell.
+    capture_flash_ms: int = 220
+
+    # Flash overlay colour on the captured cell (BGRA).
+    capture_flash_bgra: tuple[int, int, int, int] = (255, 255, 255, 180)
+
+
+@dataclass(frozen=True)
 class AppConfig:
     assets: UiAssetsConfig = UiAssetsConfig()
     pieces: UiPieceCatalogConfig = UiPieceCatalogConfig()
@@ -209,6 +240,8 @@ class AppConfig:
     status: UiStatusTextConfig = UiStatusTextConfig()
     runtime: UiRuntimeConfig = UiRuntimeConfig()
     theme: UiThemeConfig = UiThemeConfig()
+    sound: UiSoundConfig = UiSoundConfig()
+    animation: UiAnimationConfig = UiAnimationConfig()
 
     def __post_init__(self) -> None:
         expected_cell = self.assets.board_size_px // 8
