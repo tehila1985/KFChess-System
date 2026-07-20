@@ -129,6 +129,14 @@ def run_game(board_lines: list[str] | None = None) -> None:
         facade.tick(delta_ms)
         container.anim.tick(delta_ms)
 
+        # Let pygame process its internal event queue (needed for audio callbacks).
+        try:
+            import pygame as _pg
+            if _pg.get_init():
+                _pg.event.pump()
+        except Exception:
+            pass
+
         # --- Render ---
         selected_pos = (
             (controller.pending_src.row, controller.pending_src.col)
