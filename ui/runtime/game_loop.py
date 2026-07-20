@@ -154,9 +154,10 @@ def run_game(board_lines: list[str] | None = None) -> None:
         if container.moves.dirty or container.scores.dirty or container.banner.dirty:
             needs_redraw = True
 
-        # Redraw if pieces were moving before this tick (covers both
-        # in-flight frames and the final arrival frame).
-        if had_active_motions or facade.get_snapshot().active_motions:
+        # Redraw while pieces are moving or cooling down — both states
+        # require per-frame updates (animation interpolation and cooldown bar).
+        snapshot = facade.get_snapshot()
+        if had_active_motions or snapshot.active_motions or snapshot.cooldowns:
             needs_redraw = True
 
         # --- Selection change detection ------------------------------------
