@@ -7,7 +7,7 @@ class UIConfig:
     window_title: str = "Kung-Fu Chess"
     board_cell_px: int = 100
     sidebar_width_px: int = 280
-    skin_name: str = "pieces3"
+    skin_name: str = "pieces4"
 
 
 DEFAULT_UI_CONFIG = UIConfig()

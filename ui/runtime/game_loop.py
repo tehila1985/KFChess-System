@@ -12,21 +12,6 @@ from ui.resources.asset_loader import load_ui_assets
 from ui.state.game_events import MoveAccepted, MoveRejected
 
 
-DEFAULT_BOARD_LINES = [
-    "bR bN bB bQ bK bB bN bR",
-    "bP bP bP bP bP bP bP bP",
-    ". . . . . . . .",
-    ". . . . . . . .",
-    ". . . . . . . .",
-    ". . . . . . . .",
-    "wP wP wP wP wP wP wP wP",
-    "wR wN wB wQ wK wB wN wR",
-]
-
-LEFT_ACTION = "move"
-RIGHT_ACTION = "jump"
-
-
 def _process_pointer_action(
     *,
     action: str,
@@ -39,9 +24,10 @@ def _process_pointer_action(
     current_status: str,
 ) -> str:
     """Routes pointer action to move or jump flow and returns next status line."""
+    input_config = DEFAULT_APP_CONFIG.input
     board_x = x - sidebar_width
 
-    if action == RIGHT_ACTION:
+    if action == input_config.right_action:
         pos = mapper.to_position(board_x, y)
         if pos is None:
             return current_status
@@ -60,7 +46,7 @@ def _process_pointer_action(
 
 
 def run_game(board_lines: list[str] | None = None) -> None:
-    lines = board_lines or DEFAULT_BOARD_LINES
+    lines = board_lines or list(DEFAULT_APP_CONFIG.board.default_lines)
     container = build_container(lines)
     facade = container.facade
     controller = container.controller
@@ -74,18 +60,19 @@ def run_game(board_lines: list[str] | None = None) -> None:
     clock = AnimationClock()
     elapsed_ms = 0
     ui_dirty = DirtyState(dirty=True)
+    input_config = DEFAULT_APP_CONFIG.input
 
     def _on_mouse(event: int, x: int, y: int, _flags: int, _param: object) -> None:
         if event == cv2.EVENT_LBUTTONDOWN:
             click_state["x"] = x
             click_state["y"] = y
             click_state["clicked"] = True
-            click_state["action"] = LEFT_ACTION
+            click_state["action"] = input_config.left_action
         elif event == cv2.EVENT_RBUTTONDOWN:
             click_state["x"] = x
             click_state["y"] = y
             click_state["clicked"] = True
-            click_state["action"] = RIGHT_ACTION
+            click_state["action"] = input_config.right_action
 
     window_title = DEFAULT_UI_CONFIG.window_title
     cv2.namedWindow(window_title)

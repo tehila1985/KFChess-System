@@ -21,22 +21,26 @@ class BoardRenderer(IRenderer):
     facade: object
     selection_overlay: Img
     legal_moves_overlay: Img
+    piece_config: object = DEFAULT_APP_CONFIG.pieces
 
     def _pick_piece_state(self, is_moving: bool, cooldown_end_ms: int | None, now_ms: int) -> str:
         if is_moving:
-            return "move"
+            return self.piece_config.move_state
         if cooldown_end_ms is not None and cooldown_end_ms > now_ms:
-            return "short_rest"
-        return "idle"
+            return self.piece_config.cooldown_state
+        return self.piece_config.default_state
 
     def _pick_frame(self, token: str, state: str, elapsed_ms: int) -> Img | None:
         token_states = self.frames_by_token.get(token)
         if not token_states:
             return None
-        frames = token_states.get(state) or token_states.get("idle")
+        frames = token_states.get(state) or token_states.get(self.piece_config.default_state)
         if not frames:
             return None
-        fps = self.fps_by_token.get(token, {}).get(state, self.fps_by_token.get(token, {}).get("idle", 6))
+        fps = self.fps_by_token.get(token, {}).get(
+            state,
+            self.fps_by_token.get(token, {}).get(self.piece_config.default_state, self.piece_config.default_fps),
+        )
         idx = int((elapsed_ms / 1000.0) * max(1, fps)) % len(frames)
         return frames[idx]
 
@@ -87,7 +91,7 @@ class BoardRenderer(IRenderer):
             self.legal_moves_overlay.draw_on(board_frame, lx, ly)
 
         for motion in active_motions:
-            motion_state = "jump" if motion.is_jump else "move"
+            motion_state = self.piece_config.jump_state if motion.is_jump else self.piece_config.move_state
             sprite = self._pick_frame(motion.piece.token, motion_state, ctx.elapsed_ms)
             if sprite is None:
                 continue
@@ -115,6 +119,7 @@ class HudRenderer(IRenderer):
     moves: object
     scores: object
     banner: object
+    hud_config: object = DEFAULT_APP_CONFIG.hud
 
     def draw(self, scene: Img, ctx: RenderContext) -> Img:
         board_h, board_w = scene.pixels.shape[:2]
@@ -133,10 +138,10 @@ class HudRenderer(IRenderer):
         self.panel_bg.draw_on(composed, self.sidebar_w + board_w, 0)
         scene.draw_on(composed, self.sidebar_w, 0)
 
-        composed.put_text("White", 24, 56, color=(255, 255, 255), scale=1.0)
-        composed.put_text(f"Score: {self.scores.white_captures}", 24, 90, color=(235, 235, 235), scale=0.8)
-        composed.put_text("----------------", 24, 122, color=(190, 190, 190), scale=0.5)
-        composed.put_text("Moves", 24, 150, color=(235, 235, 235), scale=0.65)
+        composed.put_text(self.hud_config.white_label, 24, 56, color=(255, 255, 255), scale=1.0)
+        composed.put_text(f"{self.hud_config.score_label}: {self.scores.white_captures}", 24, 90, color=(235, 235, 235), scale=0.8)
+        composed.put_text(self.hud_config.separator, 24, 122, color=(190, 190, 190), scale=0.5)
+        composed.put_text(self.hud_config.moves_label, 24, 150, color=(235, 235, 235), scale=0.65)
         white_recent = self.moves.white_entries[-12:]
         left_y = 176
         for entry in reversed(white_recent):
@@ -144,10 +149,10 @@ class HudRenderer(IRenderer):
             left_y += 22
 
         right_x = self.sidebar_w + board_w + 16
-        composed.put_text("Black", right_x, 56, color=(255, 255, 255), scale=1.0)
-        composed.put_text(f"Score: {self.scores.black_captures}", right_x, 90, color=(235, 235, 235), scale=0.8)
-        composed.put_text("----------------", right_x, 122, color=(190, 190, 190), scale=0.5)
-        composed.put_text("Moves", right_x, 150, color=(235, 235, 235), scale=0.65)
+        composed.put_text(self.hud_config.black_label, right_x, 56, color=(255, 255, 255), scale=1.0)
+        composed.put_text(f"{self.hud_config.score_label}: {self.scores.black_captures}", right_x, 90, color=(235, 235, 235), scale=0.8)
+        composed.put_text(self.hud_config.separator, right_x, 122, color=(190, 190, 190), scale=0.5)
+        composed.put_text(self.hud_config.moves_label, right_x, 150, color=(235, 235, 235), scale=0.65)
         black_recent = self.moves.black_entries[-12:]
         right_y = 176
         for entry in reversed(black_recent):

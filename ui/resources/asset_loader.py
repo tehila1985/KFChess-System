@@ -7,14 +7,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from ui.config.app_config import AppConfig
+from ui.config.app_config import DEFAULT_APP_CONFIG, AppConfig
 from ui.config.ui_config import ASSETS_DIR, DEFAULT_UI_CONFIG
 from ui.vendor.img import Img
-
-
-ANIM_STATES = ("idle", "move", "jump", "short_rest", "long_rest")
-PIECE_COLORS = ("w", "b")
-PIECE_TYPES = ("K", "Q", "R", "B", "N", "P")
 
 
 @dataclass(frozen=True)
@@ -64,7 +59,7 @@ def _build_panel_background(app_config: AppConfig) -> Img:
 
 def _build_selection_overlay(app_config: AppConfig) -> Img:
     piece_size = app_config.assets.piece_size_px
-    edge = 4
+    edge = app_config.assets.selection_border_px
     selection_px = np.zeros((piece_size, piece_size, 4), dtype=np.uint8)
     selection_px[:edge, :, :] = (0, 255, 255, 255)
     selection_px[-edge:, :, :] = (0, 255, 255, 255)
@@ -88,26 +83,27 @@ def _build_legal_moves_overlay(app_config: AppConfig) -> Img:
 
 def _load_cooldown_overlay(app_config: AppConfig) -> Img:
     piece_size = app_config.assets.piece_size_px
-    cooldown_img = Img.read(str(ASSETS_DIR / "cooldown_fade" / "2.png"))
+    cooldown_img = Img.read(str(ASSETS_DIR / "cooldown_fade" / app_config.assets.cooldown_overlay_frame_name))
     resized = cv2.resize(cooldown_img.pixels, (piece_size, piece_size), interpolation=cv2.INTER_AREA)
     return Img(resized)
 
 
 def _load_piece_frames(app_config: AppConfig) -> tuple[dict[str, dict[str, list[Img]]], dict[str, dict[str, int]]]:
-    piece_root = ASSETS_DIR / DEFAULT_UI_CONFIG.skin_name / DEFAULT_UI_CONFIG.skin_name
+    piece_root = _resolve_piece_root(DEFAULT_UI_CONFIG.skin_name)
     piece_size = app_config.assets.piece_size_px
+    piece_config = app_config.pieces
 
     frames_by_token: dict[str, dict[str, list[Img]]] = {}
     fps_by_token: dict[str, dict[str, int]] = {}
 
-    for color in PIECE_COLORS:
-        for piece in PIECE_TYPES:
+    for color in piece_config.colors:
+        for piece in piece_config.types:
             token = f"{color}{piece}"
             code = f"{piece}{color.upper()}"
             token_states: dict[str, list[Img]] = {}
             token_fps: dict[str, int] = {}
 
-            for state in ANIM_STATES:
+            for state in piece_config.animation_states:
                 state_dir = piece_root / code / "states" / state
                 sprites_dir = state_dir / "sprites"
                 if not sprites_dir.exists():
@@ -132,8 +128,26 @@ def _load_piece_frames(app_config: AppConfig) -> tuple[dict[str, dict[str, list[
     return frames_by_token, fps_by_token
 
 
+def _resolve_piece_root(skin_name: str) -> Path:
+    """Resolve assets root for piece sheets with backward-compatible fallbacks."""
+    direct_root = ASSETS_DIR / skin_name
+    nested_root = direct_root / skin_name
+
+    if nested_root.exists():
+        return nested_root
+    if direct_root.exists():
+        return direct_root
+
+    # Last resort: prefer pieces4 when configured skin is missing.
+    fallback_direct = ASSETS_DIR / "pieces4"
+    fallback_nested = fallback_direct / "pieces4"
+    if fallback_nested.exists():
+        return fallback_nested
+    return fallback_direct
+
+
 def _read_fps(state_dir: Path) -> int:
-    default_fps = 6
+    default_fps = DEFAULT_APP_CONFIG.pieces.default_fps
     cfg = state_dir / "config.json"
     if not cfg.exists():
         return default_fps
