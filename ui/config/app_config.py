@@ -51,6 +51,23 @@ class UiPieceCatalogConfig:
     rest_state: str = "long_rest"
     default_fps: int = 6
 
+    # Display label per piece type used in move notation.
+    # Pawns use an empty string (algebraic convention: "e2-e4" not "Pe2-e4").
+    # Any type not listed falls back to its type_code unchanged.
+    piece_notation: tuple[tuple[str, str], ...] = (
+        ("K", "K"), ("Q", "Q"), ("R", "R"), ("B", "B"), ("N", "N"), ("P", ""),
+    )
+
+    # Capture display symbol per piece type shown in the score row.
+    # Any type not listed falls back to its type_code unchanged.
+    piece_symbol: tuple[tuple[str, str], ...] = (
+        ("K", "K"), ("Q", "Q"), ("R", "R"), ("B", "B"), ("N", "N"), ("P", "P"),
+    )
+
+    # Sort order for captured-piece display (lower index = shown first).
+    # Pieces not listed are sorted last.
+    piece_capture_order: tuple[str, ...] = ("Q", "R", "B", "N", "P", "K")
+
 
 @dataclass(frozen=True)
 class UiHudTextConfig:
