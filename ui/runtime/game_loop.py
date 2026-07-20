@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import ctypes
+import sys
+import time
+
 import cv2
 
 from ui.animation import AnimationClock
@@ -13,6 +17,35 @@ from ui.state.game_events import MoveAccepted, MoveRejected
 
 LEFT_ACTION = DEFAULT_APP_CONFIG.input.left_action
 RIGHT_ACTION = DEFAULT_APP_CONFIG.input.right_action
+
+# Target frame duration.  60 fps ≈ 16.67 ms per frame.
+_TARGET_FPS = 60
+_FRAME_DURATION_S = 1.0 / _TARGET_FPS
+
+
+def _raise_timer_resolution() -> bool:
+    """On Windows, lower the system timer period to 1 ms.
+
+    This prevents cv2.waitKey(1) from blocking for 15-20 ms (the default
+    Windows timer resolution), which would cap the frame rate at ~50-60 fps
+    with visible stutter. Returns True if the call succeeded.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        ctypes.windll.winmm.timeBeginPeriod(1)
+        return True
+    except Exception:
+        return False
+
+
+def _restore_timer_resolution() -> None:
+    if sys.platform != "win32":
+        return
+    try:
+        ctypes.windll.winmm.timeEndPeriod(1)
+    except Exception:
+        pass
 
 
 def _process_pointer_action(
@@ -57,7 +90,6 @@ def run_game(board_lines: list[str] | None = None) -> None:
 
     status_line = DEFAULT_APP_CONFIG.status.idle_prompt
 
-    # Click state: written by the mouse callback, consumed once per frame.
     click_state: dict[str, object] = {
         "x": None,
         "y": None,
@@ -108,13 +140,47 @@ def run_game(board_lines: list[str] | None = None) -> None:
         )
     )
 
+    _raise_timer_resolution()
+    try:
+        _run_loop(
+            facade=facade,
+            ui_controller=ui_controller,
+            container=container,
+            renderer=renderer,
+            assets=assets,
+            clock=clock,
+            elapsed_ms=elapsed_ms,
+            status_line=status_line,
+            click_state=click_state,
+            window_title=window_title,
+        )
+    finally:
+        _restore_timer_resolution()
+        cv2.destroyAllWindows()
+
+
+def _run_loop(
+    *,
+    facade,
+    ui_controller,
+    container,
+    renderer,
+    assets,
+    clock: AnimationClock,
+    elapsed_ms: int,
+    status_line: str,
+    click_state: dict,
+    window_title: str,
+) -> None:
+    frame_start = time.perf_counter()
+
     while True:
         # --- Input handling ------------------------------------------------
         if click_state["clicked"]:
             x = int(click_state["x"])           # type: ignore[arg-type]
             y = int(click_state["y"])           # type: ignore[arg-type]
             action = str(click_state["action"])
-            click_state["clicked"] = False      # clear immediately after snapshot
+            click_state["clicked"] = False
             status_line = _process_pointer_action(
                 action=action,
                 x=x,
@@ -133,9 +199,7 @@ def run_game(board_lines: list[str] | None = None) -> None:
         elapsed_ms += delta_ms
         facade.tick(delta_ms)
 
-        # --- Render every frame --------------------------------------------
-        # Piece animation, cooldown bars, and sprite cycling all change
-        # continuously — rendering every frame is the correct approach here.
+        # --- Render --------------------------------------------------------
         pending = ui_controller.pending_src
         selected_pos = (
             (pending.row, pending.col) if pending is not None else None
@@ -156,10 +220,25 @@ def run_game(board_lines: list[str] | None = None) -> None:
         container.scores.dirty = False
         container.banner.dirty = False
 
-        key = frame.show(window_title)
+        # --- Display & frame cap -------------------------------------------
+        # cv2.waitKey(1) on Windows blocks for the OS timer period (~15 ms by
+        # default). We call it with 1 ms so OpenCV pumps its event queue, then
+        # busy-spin for the remainder of the frame budget using perf_counter.
+        # Combined with timeBeginPeriod(1) this gives a stable ~60 fps.
+        frame.show(window_title)
+        key = cv2.waitKey(1)
+
+        now = time.perf_counter()
+        remaining = _FRAME_DURATION_S - (now - frame_start)
+        if remaining > 0.002:
+            # Sleep for most of the remaining time, then busy-spin the tail.
+            time.sleep(remaining - 0.001)
+        # Busy-spin for the final ~1 ms to hit the target precisely.
+        while time.perf_counter() - frame_start < _FRAME_DURATION_S:
+            pass
+        frame_start = time.perf_counter()
+
         if key in (ord("q"), ord("Q"), 27):
             break
         if cv2.getWindowProperty(window_title, cv2.WND_PROP_VISIBLE) < 1:
             break
-
-    cv2.destroyAllWindows()
