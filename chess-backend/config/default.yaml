@@ -1,0 +1,33 @@
+rating:
+  starting_elo: 1200
+  k_factor: 32
+  match_range: 100
+
+matchmaking:
+  queue_timeout_seconds: 60
+  poll_interval_seconds: 1
+
+game:
+  disconnect_grace_seconds: 20
+  countdown_tick_seconds: 1
+
+room:
+  id_length: 6
+  id_alphabet: "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+auth:
+  password_hash_scheme: "argon2"
+  min_password_length: 8
+  session_token_ttl_seconds: 86400
+
+server:
+  host: "0.0.0.0"
+  port: 8765
+  db_path: "data/chess.db"
+
+logging:
+  server_log_path: "logs/server.log"
+  client_log_path: "logs/client.log"
+  level: "INFO"
+  rotate_max_bytes: 5000000
+  rotate_backups: 5
