@@ -36,6 +36,7 @@ from server.domain.enums import GameResult, EndReason
 from server.domain.player import Player
 from server.repositories.base_repository import AbstractUserRepository, AbstractGameRepository
 from server.services.rating_service import RatingService
+from server.services.disconnect_monitor import DisconnectMonitor
 
 
 # Standard starting board layout
@@ -116,7 +117,9 @@ class GameSession:
             config=DEFAULT_CONFIG,
         )
 
-        # Disconnect monitors (one per player slot): {conn_id: asyncio.Task}
+        # Disconnect monitors {conn_id: DisconnectMonitor}
+        self._monitors: Dict[str, DisconnectMonitor] = {}
+        # Alias expected by end_game and _cancel_disconnect_task
         self._disconnect_tasks: Dict[str, asyncio.Task] = {}
 
     # ── Properties ────────────────────────────────────────────────────
@@ -215,7 +218,7 @@ class GameSession:
             return MoveResult(False, reason)
 
     async def handle_disconnect(self, conn_id: str) -> None:
-        """Start a countdown for the disconnected player."""
+        """Start a DisconnectMonitor countdown for the disconnected player."""
         if self._ended:
             return
         player, _ = self._player_and_color(conn_id)
@@ -226,23 +229,53 @@ class GameSession:
                           self._game_id, player.username)
 
         # Cancel any existing monitor for this conn
-        await self._cancel_disconnect_task(conn_id)
+        self._cancel_monitor(conn_id)
 
-        task = asyncio.create_task(
-            self._run_countdown(player, conn_id)
+        other_conn = (
+            self._black.conn_id if conn_id == self._white.conn_id else self._white.conn_id
         )
-        self._disconnect_tasks[conn_id] = task
+        conns_to_notify = {other_conn} | self._viewers
+
+        # Notify opponent immediately
+        notif = Envelope(
+            type=MessageType.OPPONENT_DISCONNECTED,
+            payload=OpponentDisconnectedPayload(username=player.username).model_dump(),
+        )
+
+        async def on_tick(seconds_left: int) -> None:
+            from common.protocol.schemas import DisconnectCountdownTickPayload
+            tick_env = Envelope(
+                type=MessageType.DISCONNECT_COUNTDOWN_TICK,
+                payload=DisconnectCountdownTickPayload(seconds_left=seconds_left).model_dump(),
+            )
+            await self._hub.broadcast(conns_to_notify, tick_env.to_json())
+            self._log.info("countdown_tick game_id=%s user=%s seconds_left=%d",
+                           self._game_id, player.username, seconds_left)
+
+        async def on_timeout() -> None:
+            self._log.warning("auto_resign game_id=%s user=%s", self._game_id, player.username)
+            result = (
+                GameResult.BLACK_WINS if conn_id == self._white.conn_id else GameResult.WHITE_WINS
+            )
+            await self.end_game(result, EndReason.DISCONNECT_TIMEOUT)
+
+        monitor = DisconnectMonitor(
+            grace_seconds=self._disconnect_grace,
+            tick_seconds=self._tick_seconds,
+            on_tick=on_tick,
+            on_timeout=on_timeout,
+            logger=self._log,
+        )
+        self._monitors[conn_id] = monitor
+        await self._hub.broadcast(conns_to_notify, notif.to_json())
+        await monitor.start()
 
     async def handle_reconnect(self, old_conn_id: str, new_conn_id: str) -> None:
         """Cancel the countdown if the player reconnects within the grace period."""
-        if await self._cancel_disconnect_task(old_conn_id):
+        cancelled = self._cancel_monitor(old_conn_id)
+        if cancelled:
             self._log.info("reconnect game_id=%s old_conn=%s new_conn=%s",
                            self._game_id, old_conn_id, new_conn_id)
-            # Update player connection id
-            if self._white.conn_id == old_conn_id:
-                object.__setattr__(self._white, 'conn_id', new_conn_id)
-            elif self._black.conn_id == old_conn_id:
-                object.__setattr__(self._black, 'conn_id', new_conn_id)
 
     async def end_game(self, result: GameResult, reason: EndReason) -> None:
         """
@@ -254,60 +287,75 @@ class GameSession:
             return
         self._ended = True
 
-        # Cancel any pending countdown tasks
-        for task in self._disconnect_tasks.values():
-            task.cancel()
+        # Cancel any pending disconnect monitors
+        for monitor in list(self._monitors.values()):
+            monitor.cancel()
+        self._monitors.clear()
         self._disconnect_tasks.clear()
 
-        white_elo_before = self._white.elo
-        black_elo_before = self._black.elo
+        try:
+            white_elo_before = self._white.elo
+            black_elo_before = self._black.elo
 
-        new_white_elo, new_black_elo = self._rating.update_ratings(
-            white_elo_before, black_elo_before, result
-        )
+            new_white_elo, new_black_elo = self._rating.update_ratings(
+                white_elo_before, black_elo_before, result
+            )
 
-        # Persist ELO updates
-        self._user_repo.update_elo(self._white.user_id, new_white_elo)
-        self._user_repo.update_elo(self._black.user_id, new_black_elo)
+            # Persist ELO updates
+            self._user_repo.update_elo(self._white.user_id, new_white_elo)
+            self._user_repo.update_elo(self._black.user_id, new_black_elo)
 
-        ended_at = datetime.now(timezone.utc).isoformat()
+            ended_at = datetime.now(timezone.utc).isoformat()
 
-        # Persist game record
-        self._game_repo.record_game(
-            white_user_id=self._white.user_id,
-            black_user_id=self._black.user_id,
-            result=result.value,
-            end_reason=reason.value,
-            white_elo_before=white_elo_before,
-            black_elo_before=black_elo_before,
-            white_elo_after=new_white_elo,
-            black_elo_after=new_black_elo,
-            room_id=self._room_id,
-            started_at=self._started_at,
-            ended_at=ended_at,
-        )
+            # Persist game record
+            self._game_repo.record_game(
+                white_user_id=self._white.user_id,
+                black_user_id=self._black.user_id,
+                result=result.value,
+                end_reason=reason.value,
+                white_elo_before=white_elo_before,
+                black_elo_before=black_elo_before,
+                white_elo_after=new_white_elo,
+                black_elo_after=new_black_elo,
+                room_id=self._room_id,
+                started_at=self._started_at,
+                ended_at=ended_at,
+            )
 
-        self._log.info(
-            "game_ended game_id=%s result=%s reason=%s "
-            "white_elo=%d->%d black_elo=%d->%d",
-            self._game_id, result.value, reason.value,
-            white_elo_before, new_white_elo,
-            black_elo_before, new_black_elo,
-        )
+            self._log.info(
+                "game_ended game_id=%s result=%s reason=%s "
+                "white_elo=%d->%d black_elo=%d->%d",
+                self._game_id, result.value, reason.value,
+                white_elo_before, new_white_elo,
+                black_elo_before, new_black_elo,
+            )
 
-        # Broadcast GAME_END
-        payload = GameEndPayload(
-            result=result.value,
-            reason=reason.value,
-            white_elo_before=white_elo_before,
-            black_elo_before=black_elo_before,
-            white_elo_after=new_white_elo,
-            black_elo_after=new_black_elo,
-        ).model_dump()
+            # Broadcast GAME_END
+            payload = GameEndPayload(
+                result=result.value,
+                reason=reason.value,
+                white_elo_before=white_elo_before,
+                black_elo_before=black_elo_before,
+                white_elo_after=new_white_elo,
+                black_elo_after=new_black_elo,
+            ).model_dump()
 
-        all_conns = {self._white.conn_id, self._black.conn_id} | self._viewers
-        env = Envelope(type=MessageType.GAME_END, payload=payload)
-        await self._hub.broadcast(all_conns, env.to_json())
+            # Broadcast GAME_END to all participants by token
+            # (token-based lookup handles reconnects and stale conn_ids).
+            player_tokens = {self._white.session_token, self._black.session_token}
+            env = Envelope(type=MessageType.GAME_END, payload=payload)
+            await self._hub.broadcast_to_tokens(player_tokens, env.to_json())
+            # Also try direct conn_id broadcast for viewer connections (no tokens).
+            if self._viewers:
+                await self._hub.broadcast(
+                    self._viewers & self._hub.all_conn_ids(), env.to_json()
+                )
+
+        except Exception as exc:
+            import traceback as _tb
+            print(f"[end_game_error] {exc}", flush=True)
+            _tb.print_exc()
+            self._log.exception("end_game_error game_id=%s exc=%s", self._game_id, exc)
 
     # ── Internal helpers ─────────────────────────────────────────────
 
@@ -317,6 +365,14 @@ class GameSession:
         if conn_id == self._black.conn_id:
             return self._black, ENGINE_BLACK
         return None, None
+
+    def _cancel_monitor(self, conn_id: str) -> bool:
+        """Cancel and remove a disconnect monitor. Returns True if one existed."""
+        monitor = self._monitors.pop(conn_id, None)
+        if monitor is not None:
+            monitor.cancel()
+            return True
+        return False
 
     async def _broadcast_move(
         self, color: str, src_row: int, src_col: int, dst_row: int, dst_col: int

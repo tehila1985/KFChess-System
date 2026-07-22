@@ -115,7 +115,6 @@ class GameStartPayload(BaseModel):
     opponent: str
     room_id: Optional[str] = None
 
-
 class MovePayload(BaseModel):
     session_token: str
     src_row: int

@@ -139,13 +139,30 @@ class TestConnectionHub:
         assert hub.get_conn_id_by_token("tok123") == "c1"
         assert hub.get_token_by_conn_id("c1") == "tok123"
 
-    def test_unregister_cleans_up_token(self):
+    def test_unregister_removes_connection_but_keeps_token(self):
+        """unregister removes the websocket but preserves the token mapping
+        so that broadcast_to_tokens still works after a temporary disconnect."""
         hub = ConnectionHub()
         ws = FakeWebSocket()
         hub.register("c1", ws)
         hub.associate_token("c1", "tok123")
         hub.unregister("c1")
-        assert hub.get_conn_id_by_token("tok123") is None
+        # conn is gone
+        assert hub.get_websocket("c1") is None
+        # token mapping preserved for reconnect/broadcast support
+        assert hub.get_conn_id_by_token("tok123") == "c1"
+
+    def test_token_mapping_replaced_on_reassociate(self):
+        """associate_token with the same token on a new connection updates the mapping."""
+        hub = ConnectionHub()
+        ws1, ws2 = FakeWebSocket(), FakeWebSocket()
+        hub.register("c1", ws1)
+        hub.associate_token("c1", "tok123")
+        hub.unregister("c1")
+        # New connection with same token
+        hub.register("c2", ws2)
+        hub.associate_token("c2", "tok123")
+        assert hub.get_conn_id_by_token("tok123") == "c2"
 
     def test_disconnect_callback_fired(self):
         hub = ConnectionHub()

@@ -32,6 +32,13 @@ from server.services.rating_service import RatingService
 class FakeHub:
     def __init__(self):
         self.sent: dict[str, list[str]] = {}
+        self._tokens: dict[str, str] = {}   # token → conn_id
+
+    def associate_token(self, conn_id: str, token: str) -> None:
+        self._tokens[token] = conn_id
+
+    def all_conn_ids(self):
+        return set(self.sent.keys())
 
     async def send(self, conn_id: str, msg: str) -> bool:
         self.sent.setdefault(conn_id, []).append(msg)
@@ -40,6 +47,12 @@ class FakeHub:
     async def broadcast(self, conn_ids, msg: str) -> None:
         for c in conn_ids:
             await self.send(c, msg)
+
+    async def broadcast_to_tokens(self, tokens, msg: str) -> None:
+        for t in tokens:
+            conn_id = self._tokens.get(t)
+            if conn_id:
+                await self.send(conn_id, msg)
 
 
 class FakeUserRepo(AbstractUserRepository):
@@ -98,6 +111,9 @@ def make_session(hub=None, user_repo=None, game_repo=None):
     rating = RatingService(settings)
     white = Player(1, "alice", 1200, "conn_white", "tok_white")
     black = Player(2, "bob", 1200, "conn_black", "tok_black")
+    # Register tokens so broadcast_to_tokens can resolve them
+    hub.associate_token("conn_white", "tok_white")
+    hub.associate_token("conn_black", "tok_black")
     return GameSession(
         game_id="game123",
         white=white,

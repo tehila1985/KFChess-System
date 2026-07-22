@@ -15,7 +15,6 @@ class ConnectionHub:
     Registry mapping connection_id → websocket.
 
     Also tracks optional session_token → connection_id for authenticated users.
-
     No module accesses internal dicts directly — everything goes through methods.
     """
 
@@ -29,16 +28,21 @@ class ConnectionHub:
     # ── Registration ─────────────────────────────────────────────────
 
     def register(self, conn_id: str, websocket: Any) -> None:
-        """Register a new connection."""
         self._connections[conn_id] = websocket
         self._log.debug("hub_register conn_id=%s", conn_id)
 
     def unregister(self, conn_id: str) -> None:
-        """Remove a connection and clean up any associated session token."""
+        """Remove a connection.
+
+        NOTE: The session-token mapping is intentionally preserved on disconnect
+        so that game-end broadcasts (which use token lookup) can still find the
+        player's *new* connection if they reconnect before the message is sent.
+        The token mapping is only removed when a new connection explicitly calls
+        associate_token() for the same token, replacing the old mapping.
+        """
         self._connections.pop(conn_id, None)
-        token = self._conn_to_token.pop(conn_id, None)
-        if token is not None:
-            self._token_to_conn.pop(token, None)
+        # Remove conn→token direction only; keep token→conn for reconnect support.
+        self._conn_to_token.pop(conn_id, None)
         self._log.debug("hub_unregister conn_id=%s", conn_id)
         for cb in self._disconnect_callbacks:
             try:
@@ -48,7 +52,6 @@ class ConnectionHub:
 
     def associate_token(self, conn_id: str, session_token: str) -> None:
         """Associate an authenticated session token with a connection."""
-        # Remove any previous association for this token
         old_conn = self._token_to_conn.pop(session_token, None)
         if old_conn is not None:
             self._conn_to_token.pop(old_conn, None)
@@ -75,11 +78,7 @@ class ConnectionHub:
     # ── Sending ──────────────────────────────────────────────────────
 
     async def send(self, conn_id: str, message: str) -> bool:
-        """
-        Send a message to a connection by conn_id.
-
-        Returns True if sent, False if the connection is not registered.
-        """
+        """Send to a connection by conn_id. Returns True if sent."""
         ws = self._connections.get(conn_id)
         if ws is None:
             self._log.debug("hub_send_miss conn_id=%s", conn_id)
@@ -91,12 +90,29 @@ class ConnectionHub:
             self._log.warning("hub_send_error conn_id=%s exc=%s", conn_id, exc)
             return False
 
+    async def send_to_token(self, session_token: str, message: str) -> bool:
+        """Send to a connection by session token (survives reconnects)."""
+        conn_id = self._token_to_conn.get(session_token)
+        if conn_id is None:
+            self._log.debug("hub_send_token_miss token=%s", session_token)
+            return False
+        return await self.send(conn_id, message)
+
     async def broadcast(self, conn_ids: Set[str], message: str) -> None:
-        """Send a message to multiple connections concurrently."""
+        """Send to multiple connections by conn_id concurrently."""
         if not conn_ids:
             return
         await asyncio.gather(
             *(self.send(cid, message) for cid in conn_ids),
+            return_exceptions=True,
+        )
+
+    async def broadcast_to_tokens(self, tokens: Set[str], message: str) -> None:
+        """Broadcast to players by session token — survives reconnects."""
+        if not tokens:
+            return
+        await asyncio.gather(
+            *(self.send_to_token(t, message) for t in tokens if t),
             return_exceptions=True,
         )
 
