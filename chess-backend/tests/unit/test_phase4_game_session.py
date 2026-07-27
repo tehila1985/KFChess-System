@@ -164,6 +164,28 @@ class TestGameSession:
         assert not result.accepted
 
     @pytest.mark.asyncio
+    async def test_black_cannot_move_whites_piece(self):
+        """
+        Regression: apply_move must check that the piece at src belongs to
+        the requesting player's color. The underlying engine is a real-time
+        arbiter with no turn concept — the piece-ownership check IS what
+        stops a player from moving their opponent's pieces.
+        """
+        session, hub, _, _ = make_session()
+        # White pawn sits at row 6, col 4 — Black (conn_black) tries to move it.
+        result = await session.apply_move("conn_black", 6, 4, 4, 4)
+        assert not result.accepted
+        assert result.reason == "not_your_piece"
+
+    @pytest.mark.asyncio
+    async def test_white_cannot_move_blacks_piece(self):
+        session, hub, _, _ = make_session()
+        # Black pawn sits at row 1, col 4 — White (conn_white) tries to move it.
+        result = await session.apply_move("conn_white", 1, 4, 3, 4)
+        assert not result.accepted
+        assert result.reason == "not_your_piece"
+
+    @pytest.mark.asyncio
     async def test_end_game_updates_elo_exactly_once(self):
         session, _, user_repo, _ = make_session()
         await session.end_game(GameResult.WHITE_WINS, EndReason.RESIGN)

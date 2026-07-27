@@ -55,6 +55,9 @@ class GameHandler:
             return None
         return self._sessions.get(game_id)
 
+    def get_session(self, game_id: str) -> Optional[GameSession]:
+        return self._sessions.get(game_id)
+
     async def handle_move(self, conn_id: str, envelope: Envelope) -> None:
         try:
             payload = MovePayload(**envelope.payload)

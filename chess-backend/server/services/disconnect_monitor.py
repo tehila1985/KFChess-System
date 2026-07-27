@@ -53,7 +53,16 @@ class DisconnectMonitor:
         self._task = asyncio.create_task(self._run())
 
     def cancel(self) -> None:
-        """Cancel the countdown (call when player reconnects)."""
+        """Cancel the countdown (call when player reconnects).
+
+        No-op if the countdown already fired: the timeout callback runs
+        as part of this monitor's own task, and end_game() (invoked from
+        on_timeout) cancels *all* monitors during cleanup — without this
+        guard that would self-cancel the currently-running task and abort
+        the in-flight GAME_END broadcast via a stray CancelledError.
+        """
+        if self._fired:
+            return
         self._cancelled = True
         if self._task and not self._task.done():
             self._task.cancel()

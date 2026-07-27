@@ -165,6 +165,48 @@ async def test_two_clients_get_matched():
 
 
 @pytest.mark.asyncio
+async def test_matchmaking_events_are_logged(caplog):
+    """Phase 8: matchmaking enqueue and match events must be logged (§11)."""
+    caplog.set_level(logging.INFO, logger="chess.test.mm")
+    stop_event = asyncio.Event()
+    ready_event = asyncio.Event()
+    srv = asyncio.create_task(_run_mm_server(stop_event, ready_event))
+    await asyncio.wait_for(ready_event.wait(), 5.0)
+
+    try:
+        async with (
+            websockets.connect(f"ws://127.0.0.1:{TEST_PORT}") as ws1,
+            websockets.connect(f"ws://127.0.0.1:{TEST_PORT}") as ws2,
+        ):
+            tok1 = await _register_and_login(ws1, "log_mm_alice", "password123")
+            tok2 = await _register_and_login(ws2, "log_mm_bob", "password123")
+
+            await ws1.send(Envelope(type=MessageType.PLAY_REQUEST,
+                                     payload={"session_token": tok1}).to_json())
+            await ws2.send(Envelope(type=MessageType.PLAY_REQUEST,
+                                     payload={"session_token": tok2}).to_json())
+
+            await asyncio.wait_for(ws1.recv(), 3.0)  # PLAY_SEARCHING
+            await asyncio.wait_for(ws2.recv(), 3.0)  # PLAY_SEARCHING
+
+            # Wait for the background loop to pair them
+            for _ in range(5):
+                try:
+                    await asyncio.wait_for(ws1.recv(), 2.0)
+                    break
+                except asyncio.TimeoutError:
+                    continue
+    finally:
+        stop_event.set()
+        await srv
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("matchmaking_enqueue" in m and "log_mm_alice" in m for m in messages), messages
+    assert any("matchmaking_enqueue" in m and "log_mm_bob" in m for m in messages), messages
+    assert any("matchmaking_match" in m for m in messages), messages
+
+
+@pytest.mark.asyncio
 async def test_players_outside_elo_band_not_paired():
     """Two players 200 ELO apart should NOT be paired in one tick."""
     stop_event = asyncio.Event()

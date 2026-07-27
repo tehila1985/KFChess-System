@@ -162,17 +162,37 @@ class TestGameSessionDisconnect:
     """Tests that GameSession correctly wires DisconnectMonitor."""
 
     def _make_session(self):
-        """Build a GameSession with stub dependencies."""
+        """Build a GameSession with a real ConnectionHub and fake websockets.
+
+        Uses the real ConnectionHub (not a bare MagicMock) so that
+        end_game()'s broadcast path runs through actual asyncio.gather /
+        genuine await-suspension points, the same way it does in production.
+        A bare MagicMock for hub.broadcast_to_tokens resolves synchronously
+        and would hide bugs that only manifest when a task is cancelled at a
+        real suspension point (see test_disconnect_timeout_triggers_end_game).
+        """
         import uuid
-        from unittest.mock import AsyncMock, MagicMock
+        from unittest.mock import MagicMock
         from server.services.game_session import GameSession
         from server.services.rating_service import RatingService
-        from server.domain.enums import GameResult
         from server.domain.player import Player
+        from server.connection_hub import ConnectionHub
 
-        hub = MagicMock()
-        hub.send = AsyncMock(return_value=True)
-        hub.broadcast = AsyncMock()
+        class FakeWebSocket:
+            def __init__(self):
+                self.sent: list[str] = []
+
+            async def send(self, message: str) -> None:
+                await asyncio.sleep(0)  # genuine suspension, like a real socket write
+                self.sent.append(message)
+
+        hub = ConnectionHub(logger=MagicMock())
+        white_ws = FakeWebSocket()
+        black_ws = FakeWebSocket()
+        hub.register("conn-alice", white_ws)
+        hub.register("conn-bob", black_ws)
+        hub.associate_token("conn-alice", "tok-alice")
+        hub.associate_token("conn-bob", "tok-bob")
 
         user_repo = MagicMock()
         user_repo.update_elo = MagicMock()
@@ -183,7 +203,6 @@ class TestGameSessionDisconnect:
         white = Player(user_id=1, username="Alice", conn_id="conn-alice", elo=1200, session_token="tok-alice")
         black = Player(user_id=2, username="Bob",   conn_id="conn-bob",   elo=1200, session_token="tok-bob")
 
-        from server.domain.elo import calculate_both
         rating = RatingService(load_settings())
 
         session = GameSession(
@@ -198,11 +217,11 @@ class TestGameSessionDisconnect:
             disconnect_grace_seconds=3,
             countdown_tick_seconds=0.01,
         )
-        return session, white, black, hub
+        return session, white, black, hub, white_ws, black_ws
 
     async def test_handle_disconnect_starts_monitor(self):
         """handle_disconnect stores a monitor for the disconnected player."""
-        session, white, black, hub = self._make_session()
+        session, white, black, hub, white_ws, black_ws = self._make_session()
         await session.handle_disconnect(white.conn_id)
         assert white.conn_id in session._monitors
         # Cleanup
@@ -210,14 +229,14 @@ class TestGameSessionDisconnect:
 
     async def test_handle_reconnect_cancels_monitor(self):
         """handle_reconnect cancels the existing monitor."""
-        session, white, black, hub = self._make_session()
+        session, white, black, hub, white_ws, black_ws = self._make_session()
         await session.handle_disconnect(white.conn_id)
         await session.handle_reconnect(white.conn_id, "new-conn")
         assert white.conn_id not in session._monitors
 
     async def test_disconnect_timeout_triggers_end_game(self):
         """After the grace period, end_game is called with opponent wins."""
-        session, white, black, hub = self._make_session()
+        session, white, black, hub, white_ws, black_ws = self._make_session()
         await session.handle_disconnect(white.conn_id)
 
         # Wait for countdown (3 × 0.01s ticks + a bit more)
@@ -225,10 +244,16 @@ class TestGameSessionDisconnect:
 
         # game should have ended — ELO updated
         assert session._user_repo.update_elo.called
+        # GAME_END must actually reach both players — regression guard for the
+        # self-cancellation bug where end_game() cancelling all monitors
+        # (including the one whose on_timeout is currently running it) threw
+        # a stray CancelledError that aborted the broadcast mid-flight.
+        assert any('"type":"GAME_END"' in msg for msg in white_ws.sent), white_ws.sent
+        assert any('"type":"GAME_END"' in msg for msg in black_ws.sent), black_ws.sent
 
     async def test_reconnect_within_grace_prevents_auto_resign(self):
         """Reconnecting before the countdown ends cancels auto-resign."""
-        session, white, black, hub = self._make_session()
+        session, white, black, hub, white_ws, black_ws = self._make_session()
 
         # Use a longer grace so reconnect arrives in time
         session._disconnect_grace = 10
@@ -245,7 +270,7 @@ class TestGameSessionDisconnect:
     async def test_end_game_cancels_all_monitors(self):
         """end_game cleans up all monitors."""
         from server.domain.enums import GameResult, EndReason
-        session, white, black, hub = self._make_session()
+        session, white, black, hub, white_ws, black_ws = self._make_session()
 
         await session.handle_disconnect(white.conn_id)
         assert len(session._monitors) == 1

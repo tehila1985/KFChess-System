@@ -5,6 +5,11 @@ __pycache__/
 .venv/
 venv/
 env/
+.pytest_cache/
+
+# Chess backend runtime artifacts
+chess-backend/logs/
+chess-backend/data/
 
 # IDE
 .vscode/

@@ -34,10 +34,6 @@ class AuthError:
     reason: str
 
 
-# Active sessions: {session_token: (user_id, username, elo, expires_at)}
-_sessions: dict[str, tuple[int, str, int, datetime]] = {}
-
-
 def _new_token() -> str:
     return secrets.token_hex(32)
 
@@ -62,6 +58,8 @@ class AuthService:
         self._settings = settings
         self._log = logger or logging.getLogger(__name__)
         self._ph = PasswordHasher()
+        # Active sessions: {session_token: (user_id, username, elo, expires_at)}
+        self._sessions: dict[str, tuple[int, str, int, datetime]] = {}
 
     def register(self, username: str, password: str) -> Union[AuthSuccess, AuthError]:
         """
@@ -132,12 +130,12 @@ class AuthService:
 
         Returns (user_id, username, elo) if valid and not expired, else None.
         """
-        entry = _sessions.get(token)
+        entry = self._sessions.get(token)
         if entry is None:
             return None
         user_id, username, elo, expires_at = entry
         if datetime.now(timezone.utc) > expires_at:
-            _sessions.pop(token, None)
+            self._sessions.pop(token, None)
             return None
         return user_id, username, elo
 
@@ -145,5 +143,5 @@ class AuthService:
         token = _new_token()
         ttl = self._settings.auth.session_token_ttl_seconds
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl)
-        _sessions[token] = (user_id, username, elo, expires_at)
+        self._sessions[token] = (user_id, username, elo, expires_at)
         return token

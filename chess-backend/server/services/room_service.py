@@ -110,6 +110,15 @@ class RoomService:
             role = RoomRole.VIEWER
             self._log.info("room_joined room_id=%s user=%s role=viewer", room_id, player.username)
 
+            # If the game is already running, subscribe this viewer directly —
+            # start_game_if_ready() won't fire again for this room (it's a
+            # one-shot, guarded by room.game_id), so this is the only way a
+            # late-joining viewer gets onto the session's broadcast list.
+            if room.game_id is not None:
+                session = self._game_handler.get_session(room.game_id)
+                if session is not None:
+                    session.add_viewer(player.conn_id)
+
         return JoinResult(role=role, room_id=room_id, game_started=room.is_full())
 
     def get_room(self, room_id: str) -> Optional[Room]:
@@ -123,7 +132,7 @@ class RoomService:
         Returns True if a game was started.
         """
         room = self._rooms.get(room_id)
-        if room is None or not room.is_full():
+        if room is None or not room.is_full() or room.game_id is not None:
             return False
 
         session = self._factory.create(

@@ -28,7 +28,10 @@ async def main():
     raw_logger = factory.get_client_logger(settings.logging.client_log_path)
     client_logger = ClientLogger(raw_logger)
 
-    uri = f"ws://{settings.server.host}:{settings.server.port}"
+    # "0.0.0.0" is a bind-all address for the server, not a connectable
+    # target — translate it to loopback for the client's own connection.
+    connect_host = "127.0.0.1" if settings.server.host == "0.0.0.0" else settings.server.host
+    uri = f"ws://{connect_host}:{settings.server.port}"
     session = ClientSession(uri=uri, client_logger=client_logger)
 
     try:

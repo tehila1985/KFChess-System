@@ -119,8 +119,6 @@ class GameSession:
 
         # Disconnect monitors {conn_id: DisconnectMonitor}
         self._monitors: Dict[str, DisconnectMonitor] = {}
-        # Alias expected by end_game and _cancel_disconnect_task
-        self._disconnect_tasks: Dict[str, asyncio.Task] = {}
 
     # ── Properties ────────────────────────────────────────────────────
 
@@ -190,6 +188,13 @@ class GameSession:
 
         src = Position(src_row, src_col)
         dst = Position(dst_row, dst_col)
+
+        piece = self._engine.get_piece_at(src)
+        if piece is not None and piece.color != color:
+            self._log.warning("move_rejected game_id=%s user=%s reason=not_your_piece",
+                              self._game_id, player.username)
+            return MoveResult(False, "not_your_piece")
+
         result = self._engine.request_move(src, dst)
 
         if result == RequestMoveResult.ACCEPTED:
@@ -291,7 +296,6 @@ class GameSession:
         for monitor in list(self._monitors.values()):
             monitor.cancel()
         self._monitors.clear()
-        self._disconnect_tasks.clear()
 
         try:
             white_elo_before = self._white.elo
@@ -352,9 +356,6 @@ class GameSession:
                 )
 
         except Exception as exc:
-            import traceback as _tb
-            print(f"[end_game_error] {exc}", flush=True)
-            _tb.print_exc()
             self._log.exception("end_game_error game_id=%s exc=%s", self._game_id, exc)
 
     # ── Internal helpers ─────────────────────────────────────────────
@@ -385,57 +386,3 @@ class GameSession:
         env = Envelope(type=MessageType.MOVE_BROADCAST, payload=payload)
         all_conns = {self._white.conn_id, self._black.conn_id} | self._viewers
         await self._hub.broadcast(all_conns, env.to_json())
-
-    async def _run_countdown(self, player: Player, conn_id: str) -> None:
-        """Count down and auto-resign if player doesn't reconnect."""
-        from common.protocol.schemas import DisconnectCountdownTickPayload
-
-        seconds = self._disconnect_grace
-        other_conn = (
-            self._black.conn_id
-            if conn_id == self._white.conn_id
-            else self._white.conn_id
-        )
-
-        # Notify opponent
-        notif = Envelope(
-            type=MessageType.OPPONENT_DISCONNECTED,
-            payload=OpponentDisconnectedPayload(username=player.username).model_dump(),
-        )
-        conns_to_notify = {other_conn} | self._viewers
-        await self._hub.broadcast(conns_to_notify, notif.to_json())
-
-        try:
-            while seconds > 0:
-                tick = Envelope(
-                    type=MessageType.DISCONNECT_COUNTDOWN_TICK,
-                    payload=DisconnectCountdownTickPayload(seconds_left=seconds).model_dump(),
-                )
-                await self._hub.broadcast(conns_to_notify, tick.to_json())
-                self._log.info("countdown_tick game_id=%s user=%s seconds_left=%d",
-                               self._game_id, player.username, seconds)
-                await asyncio.sleep(self._tick_seconds)
-                seconds -= 1
-
-            # Countdown elapsed → auto-resign
-            self._log.warning("auto_resign game_id=%s user=%s", self._game_id, player.username)
-            result = (
-                GameResult.BLACK_WINS
-                if conn_id == self._white.conn_id
-                else GameResult.WHITE_WINS
-            )
-            await self.end_game(result, EndReason.DISCONNECT_TIMEOUT)
-
-        except asyncio.CancelledError:
-            pass  # reconnect cancelled the timer
-
-    async def _cancel_disconnect_task(self, conn_id: str) -> bool:
-        task = self._disconnect_tasks.pop(conn_id, None)
-        if task is not None and not task.done():
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-            return True
-        return False

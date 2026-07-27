@@ -66,9 +66,14 @@ class FakeFactory:
 class FakeGameHandler:
     def __init__(self):
         self.sessions: list = []
+        self._by_game_id: dict = {}
 
     def register_session(self, session):
         self.sessions.append(session)
+        self._by_game_id[session.game_id] = session
+
+    def get_session(self, game_id):
+        return self._by_game_id.get(game_id)
 
 
 def make_player(username: str, conn_id: str = None) -> Player:
@@ -212,3 +217,49 @@ class TestRoomService:
         result = await svc.start_game_if_ready(room_id)
         assert result is False
         assert len(factory.sessions) == 0
+
+    @pytest.mark.asyncio
+    async def test_start_game_if_ready_does_not_duplicate_session(self):
+        """
+        Regression: a 3rd+ joiner (viewer) arriving after the game already
+        started must NOT spin up a second GameSession for the same room.
+        Room.is_full() stays True forever once black joins, so
+        start_game_if_ready() needs its own guard (room.game_id already set)
+        rather than relying on the caller to only invoke it once.
+        """
+        svc, factory, _, game_handler = make_room_service()
+        owner = make_player("alice", "c1")
+        room_id = svc.create_room(owner)
+        svc.join_room(room_id, make_player("bob", "c2"))
+
+        first = await svc.start_game_if_ready(room_id)
+        assert first is True
+        assert len(factory.sessions) == 1
+
+        # A viewer joining afterward re-triggers the same "is_full" condition.
+        svc.join_room(room_id, make_player("charlie", "c3"))
+        second = await svc.start_game_if_ready(room_id)
+
+        assert second is False, "must not start a second game for an already-started room"
+        assert len(factory.sessions) == 1
+        assert len(game_handler.sessions) == 1
+
+    @pytest.mark.asyncio
+    async def test_late_viewer_added_to_already_running_session(self):
+        """
+        A viewer who joins *after* the game has already started must be
+        subscribed directly to the running session (join_room does this
+        inline) since start_game_if_ready() is now a one-shot per room and
+        won't run again to pick them up.
+        """
+        svc, factory, _, game_handler = make_room_service()
+        owner = make_player("alice", "c1")
+        room_id = svc.create_room(owner)
+        svc.join_room(room_id, make_player("bob", "c2"))
+        await svc.start_game_if_ready(room_id)
+        session = factory.sessions[0]
+
+        result = svc.join_room(room_id, make_player("dave", "c3"))
+
+        assert result.role == RoomRole.VIEWER
+        assert "c3" in session.viewers_added

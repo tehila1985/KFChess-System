@@ -202,6 +202,40 @@ async def test_room_three_clients_third_is_viewer():
 
 
 @pytest.mark.asyncio
+async def test_room_events_are_logged(caplog):
+    """Phase 8: room create/join events must be logged (§11)."""
+    caplog.set_level(logging.INFO, logger="chess.test.room")
+    stop_event = asyncio.Event()
+    ready_event = asyncio.Event()
+    srv = asyncio.create_task(_run_room_server(stop_event, ready_event))
+    await asyncio.wait_for(ready_event.wait(), 5.0)
+
+    try:
+        async with (
+            websockets.connect(f"ws://127.0.0.1:{TEST_PORT}") as ws1,
+            websockets.connect(f"ws://127.0.0.1:{TEST_PORT}") as ws2,
+        ):
+            tok1 = await _register_and_login(ws1, "log_room_alice")
+            tok2 = await _register_and_login(ws2, "log_room_bob")
+
+            await ws1.send(Envelope(type=MessageType.ROOM_CREATE,
+                                     payload={"session_token": tok1}).to_json())
+            r = Envelope.from_json(await asyncio.wait_for(ws1.recv(), 3.0))
+            room_id = r.payload["room_id"]
+
+            await ws2.send(Envelope(type=MessageType.ROOM_JOIN,
+                                     payload={"session_token": tok2, "room_id": room_id}).to_json())
+            await asyncio.wait_for(ws2.recv(), 3.0)  # ROOM_ROLE_ASSIGNED
+    finally:
+        stop_event.set()
+        await srv
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("room_created" in m and room_id in m for m in messages), messages
+    assert any("room_joined" in m and room_id in m for m in messages), messages
+
+
+@pytest.mark.asyncio
 async def test_bad_room_id_returns_error():
     stop_event = asyncio.Event()
     ready_event = asyncio.Event()

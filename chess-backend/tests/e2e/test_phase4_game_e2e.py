@@ -187,3 +187,74 @@ async def test_full_game_resign():
     finally:
         stop_event.set()
         await srv
+
+
+@pytest.mark.asyncio
+async def test_move_opponents_piece_is_rejected():
+    """
+    Error-path coverage: Bob (Black) must not be able to move Alice's
+    (White) pieces over the wire — MOVE_ACK should come back rejected
+    with reason="not_your_piece", and the board must be unaffected.
+    """
+    stop_event = asyncio.Event()
+    ready_event = asyncio.Event()
+    shared = {}
+    srv = asyncio.create_task(_run_game_server(stop_event, ready_event, shared))
+    await asyncio.wait_for(ready_event.wait(), 5.0)
+
+    try:
+        async with (
+            websockets.connect(f"ws://127.0.0.1:{TEST_PORT}") as ws1,
+            websockets.connect(f"ws://127.0.0.1:{TEST_PORT}") as ws2,
+        ):
+            for ws, uname in ((ws1, "alice_np"), (ws2, "bob_np")):
+                await ws.send(Envelope(
+                    type=MessageType.REGISTER,
+                    payload={"username": uname, "password": "password123"},
+                ).to_json())
+                await asyncio.wait_for(ws.recv(), 3.0)
+
+            tokens = {}
+            for ws, uname in ((ws1, "alice_np"), (ws2, "bob_np")):
+                await ws.send(Envelope(
+                    type=MessageType.LOGIN,
+                    payload={"username": uname, "password": "password123"},
+                ).to_json())
+                resp = Envelope.from_json(await asyncio.wait_for(ws.recv(), 3.0))
+                tokens[uname] = resp.payload["session_token"]
+
+            hub = shared["hub"]
+            factory = shared["factory"]
+            game_handler = shared["game_handler"]
+            user_repo = shared["user_repo"]
+
+            alice_conn = hub.get_conn_id_by_token(tokens["alice_np"])
+            bob_conn = hub.get_conn_id_by_token(tokens["bob_np"])
+            alice_user = user_repo.get_by_username("alice_np")
+            bob_user = user_repo.get_by_username("bob_np")
+
+            white_player = Player(alice_user.id, "alice_np", alice_user.elo, alice_conn, tokens["alice_np"])
+            black_player = Player(bob_user.id, "bob_np", bob_user.elo, bob_conn, tokens["bob_np"])
+
+            session = factory.create(white_player, black_player)
+            game_handler.register_session(session)
+            await session.start()
+            await asyncio.wait_for(ws1.recv(), 3.0)  # GAME_START
+            await asyncio.wait_for(ws2.recv(), 3.0)  # GAME_START
+
+            # Bob (Black) tries to move Alice's (White) pawn at row 6, col 4.
+            await ws2.send(Envelope(
+                type=MessageType.MOVE,
+                payload={
+                    "session_token": tokens["bob_np"],
+                    "src_row": 6, "src_col": 4,
+                    "dst_row": 4, "dst_col": 4,
+                },
+            ).to_json())
+            resp = Envelope.from_json(await asyncio.wait_for(ws2.recv(), 3.0))
+            assert resp.type == MessageType.MOVE_ACK
+            assert resp.payload["status"] == "rejected"
+            assert resp.payload["reason"] == "not_your_piece"
+    finally:
+        stop_event.set()
+        await srv
