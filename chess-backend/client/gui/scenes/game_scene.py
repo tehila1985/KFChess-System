@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import numpy as np
+import cv2
 
 from engine.models.position import Position
 from ui.animation import AnimationClock
@@ -245,8 +245,7 @@ class GameScene:
         self._container.scores.dirty = False
         self._container.banner.dirty = False
 
-        canvas = _blank_canvas()
-        board_frame.draw_on(canvas, 0, 0)
+        canvas = _append_bottom_bar(board_frame)
         self._draw_bottom_bar(canvas)
         return canvas
 
@@ -262,5 +261,23 @@ class GameScene:
         )
 
 
-def _blank_canvas() -> Img:
-    return Img(np.full((CANVAS_H, CANVAS_W, 3), (18, 18, 22), dtype=np.uint8))
+def _append_bottom_bar(board_frame: Img) -> Img:
+    """
+    Extend the rendered frame with a solid-color strip for the control bar.
+
+    NOT done via Img.draw_on (alpha-composite onto a separate canvas):
+    board.png has an alpha channel, and HudRenderer pads its sidebars with
+    alpha=0 before the sidebar panels are drawn on top of that padding via
+    fill_rect/put_text — which never touch the alpha channel. Alpha-
+    compositing that result onto another image would treat those pixels as
+    fully transparent and silently discard the whole sidebar (this was a
+    real bug: HUD panels never appeared, exactly like ui/runtime/game_loop.py
+    never re-composites its own output — it hands it to .show() as-is,
+    which drops alpha via a straight BGRA->BGR conversion, never blends).
+    Padding with cv2 directly avoids alpha semantics entirely.
+    """
+    pixels = board_frame.pixels
+    if pixels.shape[2] == 4:
+        pixels = cv2.cvtColor(pixels, cv2.COLOR_BGRA2BGR)
+    extended = cv2.copyMakeBorder(pixels, 0, _BAR_H, 0, 0, cv2.BORDER_CONSTANT, value=(18, 18, 22))
+    return Img(extended)
