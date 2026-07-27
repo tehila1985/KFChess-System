@@ -15,6 +15,8 @@ without touching Controller itself.
 """
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 
 from engine.models.position import Position
@@ -104,6 +106,16 @@ class GameScene:
         self._controller = Controller(self._mover, self._container.mapper)
         self._ui_controller = ControllerOutcomeAdapter(self._controller)
 
+        my_username = network.session.username or "You"
+        white_username = my_username if self._my_color == "w" else self._opponent
+        black_username = self._opponent if self._my_color == "w" else my_username
+        # HudRenderer defaults to generic "WHITE"/"BLACK" panel labels — swap
+        # in the real usernames without touching ui/ at all (hud_config is
+        # already a per-instance customization point on HudRenderer).
+        named_hud_config = replace(
+            DEFAULT_APP_CONFIG.hud, white_label=white_username, black_label=black_username
+        )
+
         self._assets = load_ui_assets(DEFAULT_APP_CONFIG)
         self._renderer = CompositeRenderer((
             BoardRenderer(
@@ -122,6 +134,7 @@ class GameScene:
                 moves=self._container.moves,
                 scores=self._container.scores,
                 banner=self._container.banner,
+                hud_config=named_hud_config,
             ),
         ))
 
