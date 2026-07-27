@@ -10,6 +10,7 @@ import asyncio
 import logging
 import sys
 import os
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional, Set
@@ -116,9 +117,25 @@ class GameSession:
             arbiter=arbiter,
             config=DEFAULT_CONFIG,
         )
+        # The engine's clock only advances when tick() is called with a real
+        # elapsed delta — it does not read the wall clock itself. Track our
+        # own reference point so in-flight motions/cooldowns actually resolve
+        # once real time passes, instead of being stuck at t=0 forever.
+        self._last_tick_ms = self._now_ms()
 
         # Disconnect monitors {conn_id: DisconnectMonitor}
         self._monitors: Dict[str, DisconnectMonitor] = {}
+
+    @staticmethod
+    def _now_ms() -> int:
+        return int(time.monotonic() * 1000)
+
+    def _tick_engine(self) -> None:
+        """Advance the engine's clock by the real time elapsed since the last tick."""
+        now = self._now_ms()
+        elapsed = max(0, now - self._last_tick_ms)
+        self._engine.tick(elapsed)
+        self._last_tick_ms = now
 
     # ── Properties ────────────────────────────────────────────────────
 
@@ -154,10 +171,21 @@ class GameSession:
             scores=snap.scores,
         )
 
+    def _snapshot_wire_fields(self, snapshot=None) -> dict:
+        """Board/scores/game_over/winner in wire-friendly (JSON) shape."""
+        snapshot = snapshot or self._engine.get_snapshot()
+        return {
+            "board": [list(row) for row in snapshot.grid],
+            "scores": dict(snapshot.scores),
+            "game_over": snapshot.game_over,
+            "winner": snapshot.winner,
+        }
+
     async def start(self) -> None:
         """Broadcast GAME_START to both players."""
         self._log.info("game_started game_id=%s white=%s black=%s",
                        self._game_id, self._white.username, self._black.username)
+        wire_fields = self._snapshot_wire_fields()
         for player, color in ((self._white, ENGINE_WHITE), (self._black, ENGINE_BLACK)):
             env = Envelope(
                 type=MessageType.GAME_START,
@@ -166,6 +194,7 @@ class GameSession:
                     color=color,
                     opponent=(self._black if color == ENGINE_WHITE else self._white).username,
                     room_id=self._room_id,
+                    **wire_fields,
                 ).model_dump(),
             )
             await self._hub.send(player.conn_id, env.to_json())
@@ -186,6 +215,11 @@ class GameSession:
         if player is None:
             return MoveResult(False, "not_a_player")
 
+        # Advance the engine's clock by real elapsed time first, so any
+        # in-flight motion/cooldown from a previous move has a chance to
+        # resolve before we validate this one against a stale state.
+        self._tick_engine()
+
         src = Position(src_row, src_col)
         dst = Position(dst_row, dst_col)
 
@@ -200,12 +234,14 @@ class GameSession:
         if result == RequestMoveResult.ACCEPTED:
             self._log.info("move_applied game_id=%s user=%s src=(%d,%d) dst=(%d,%d)",
                            self._game_id, player.username, src_row, src_col, dst_row, dst_col)
-            await self._broadcast_move(color, src_row, src_col, dst_row, dst_col)
 
-            # Tick engine to process immediate captures
-            self._engine.tick(0)
-
+            # Tick again (real elapsed, typically ~0ms here) to pick up any
+            # instantly-resolved motion before broadcasting the board.
+            self._tick_engine()
             snapshot = self._engine.get_snapshot()
+
+            await self._broadcast_move(color, src_row, src_col, dst_row, dst_col, snapshot)
+
             if snapshot.game_over:
                 winner_color = snapshot.winner
                 winner = self._white if winner_color == ENGINE_WHITE else self._black
@@ -376,12 +412,14 @@ class GameSession:
         return False
 
     async def _broadcast_move(
-        self, color: str, src_row: int, src_col: int, dst_row: int, dst_col: int
+        self, color: str, src_row: int, src_col: int, dst_row: int, dst_col: int,
+        snapshot,
     ) -> None:
         payload = MoveBroadcastPayload(
             src_row=src_row, src_col=src_col,
             dst_row=dst_row, dst_col=dst_col,
             color=color,
+            **self._snapshot_wire_fields(snapshot),
         ).model_dump()
         env = Envelope(type=MessageType.MOVE_BROADCAST, payload=payload)
         all_conns = {self._white.conn_id, self._black.conn_id} | self._viewers

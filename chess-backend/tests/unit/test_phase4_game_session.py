@@ -164,6 +164,38 @@ class TestGameSession:
         assert not result.accepted
 
     @pytest.mark.asyncio
+    async def test_same_piece_can_move_again_after_real_time_passes(self):
+        """
+        Regression: the engine is a real-time arbiter whose clock only
+        advances when tick() is called with a real elapsed delta.
+        apply_move used to call tick(0) unconditionally, so a piece's
+        motion could never complete — every second move of the same piece
+        was rejected as "empty_source" forever, making a real multi-move
+        game impossible. apply_move must tick with real wall-clock elapsed
+        time so the piece actually arrives and its cooldown eventually
+        expires.
+        """
+        session, hub, _, _ = make_session()
+        # White pawn one square forward (row 6,col4 -> row5,col4): duration
+        # 500ms travel + 3000ms cooldown by default engine config.
+        first = await session.apply_move("conn_white", 6, 4, 5, 4)
+        assert first.accepted
+
+        await asyncio.sleep(0.6)  # let the motion complete
+        second = await session.apply_move("conn_white", 5, 4, 4, 4)
+        # Still on cooldown right after arrival — not the bug we're
+        # guarding against, just the intended real-time cooldown mechanic.
+        assert not second.accepted
+        assert second.reason == "piece_on_cooldown"
+
+        await asyncio.sleep(3.1)  # let the post-arrival cooldown expire
+        third = await session.apply_move("conn_white", 5, 4, 4, 4)
+        assert third.accepted, (
+            "the same piece must eventually be movable again once real "
+            "time has passed — it must not be permanently stuck 'empty'"
+        )
+
+    @pytest.mark.asyncio
     async def test_black_cannot_move_whites_piece(self):
         """
         Regression: apply_move must check that the piece at src belongs to

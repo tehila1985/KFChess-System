@@ -90,5 +90,9 @@ class ShellUI:
             color=start_data["color"],
             opponent=start_data["opponent"],
             room_id=start_data.get("room_id"),
+            board=start_data.get("board"),
+            scores=start_data.get("scores"),
+            game_over=start_data.get("game_over", False),
+            winner=start_data.get("winner"),
         )
         await game.run()

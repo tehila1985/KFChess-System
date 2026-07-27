@@ -2,47 +2,75 @@
 game_screen.py — renders the active chess game in the terminal.
 
 SRP: presentation only. Sends moves via ClientSession.
+Reuses the existing chess project's TextRenderer — the board is never
+re-implemented here, only fed with the board/scores/game_over/winner
+fields the server includes in GAME_START and MOVE_BROADCAST.
 """
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
+import os
+import sys
+from types import SimpleNamespace
+from typing import Any, Optional
 
 from common.protocol.message_types import MessageType
 from common.protocol.schemas import Envelope, MovePayload, ResignPayload
+
+# The existing chess project's renderer lives at the repo root (ui/).
+_backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+_root_dir = os.path.dirname(_backend_dir)
+if _root_dir not in sys.path:
+    sys.path.insert(0, _root_dir)
+
+from ui.rendering.renderers import TextRenderer
 
 
 class GameScreen:
     """
     Terminal chess game screen.
 
-    Shows the board (text representation), handles move input,
-    and renders disconnect countdown ticks.
+    Shows the board (text representation via TextRenderer), handles move
+    input, and renders disconnect countdown ticks.
     """
 
     def __init__(self, session, game_id: str, color: str, opponent: str,
-                 room_id: Optional[str] = None) -> None:
+                 room_id: Optional[str] = None,
+                 board: Optional[list] = None,
+                 scores: Optional[dict] = None,
+                 game_over: bool = False,
+                 winner: Optional[str] = None) -> None:
         self._session = session
         self._game_id = game_id
         self._color = color
         self._opponent = opponent
         self._room_id = room_id
-        self._board = None  # Last received board state
         self._game_over = False
         self._countdown: Optional[int] = None
+        self._renderer = TextRenderer()
+        if board is not None:
+            self._render_state(board, scores or {}, game_over, winner)
+
+    def _render_state(self, board: list, scores: dict, game_over: bool,
+                       winner: Optional[str]) -> None:
+        snapshot = SimpleNamespace(
+            grid=board, scores=scores, game_over=game_over, winner=winner,
+        )
+        print(self._renderer.render(snapshot))
 
     def on_move_broadcast(self, env: Envelope) -> None:
         p = env.payload
-        print(f"  Move: ({p['src_row']},{p['src_col']}) → ({p['dst_row']},{p['dst_col']}) [{p['color']}]")
+        print(f"  Move: ({p['src_row']},{p['src_col']}) -> ({p['dst_row']},{p['dst_col']}) [{p['color']}]")
+        self._render_state(p["board"], p["scores"], p["game_over"], p["winner"])
 
     def on_game_end(self, env: Envelope) -> None:
         p = env.payload
         print(f"\n=== Game Over ===")
         print(f"Result: {p['result']} | Reason: {p['reason']}")
         if self._color == 'w':
-            print(f"Your ELO: {p['white_elo_before']} → {p['white_elo_after']}")
+            print(f"Your ELO: {p['white_elo_before']} -> {p['white_elo_after']}")
         else:
-            print(f"Your ELO: {p['black_elo_before']} → {p['black_elo_after']}")
+            print(f"Your ELO: {p['black_elo_before']} -> {p['black_elo_after']}")
         self._game_over = True
 
     def on_opponent_disconnected(self, env: Envelope) -> None:

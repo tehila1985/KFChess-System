@@ -26,12 +26,18 @@ class PlayScreen:
         self._session = session
         self._match_found: Optional[dict] = None
         self._timed_out = False
+        self._game_start_payload: Optional[dict] = None
+        self._game_start_event = asyncio.Event()
 
     def on_match_found(self, env: Envelope) -> None:
         self._match_found = env.payload
 
     def on_timeout(self, env: Envelope) -> None:
         self._timed_out = True
+
+    def on_game_start(self, env: Envelope) -> None:
+        self._game_start_payload = env.payload
+        self._game_start_event.set()
 
     async def run(self) -> Optional[dict]:
         """
@@ -41,6 +47,7 @@ class PlayScreen:
         """
         self._session.on(MessageType.PLAY_MATCH_FOUND, self.on_match_found)
         self._session.on(MessageType.PLAY_TIMEOUT, self.on_timeout)
+        self._session.on(MessageType.GAME_START, self.on_game_start)
 
         env = Envelope(
             type=MessageType.PLAY_REQUEST,
@@ -62,7 +69,13 @@ class PlayScreen:
         if self._match_found:
             m = self._match_found
             print(f"Match found! You are {'White' if m['color'] == 'w' else 'Black'} vs {m['opponent']}")
-            return self._match_found
+            # GAME_START (with the initial board) follows PLAY_MATCH_FOUND —
+            # wait briefly for it so GameScreen can render immediately.
+            try:
+                await asyncio.wait_for(self._game_start_event.wait(), timeout=5.0)
+            except asyncio.TimeoutError:
+                pass
+            return self._game_start_payload or self._match_found
         else:
             print("Could not find an opponent. Returning to menu.")
             return None

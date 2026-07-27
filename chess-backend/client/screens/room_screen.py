@@ -38,9 +38,9 @@ class RoomScreen:
             return None
 
         room_id = resp.payload["room_id"]
-        print(f"\n╔═══════════════════════╗")
-        print(f"║  Room ID: {room_id:6}       ║")
-        print(f"╚═══════════════════════╝")
+        print(f"\n+-----------------------+")
+        print(f"|  Room ID: {room_id:6}       |")
+        print(f"+-----------------------+")
         print("Waiting for opponent...")
 
         # Wait for GAME_START
@@ -72,9 +72,9 @@ class RoomScreen:
             return None
 
         role = resp.payload.get("role", "?")
-        print(f"\n╔═══════════════════════╗")
-        print(f"║  Room ID: {room_id:6}       ║")
-        print(f"╚═══════════════════════╝")
+        print(f"\n+-----------------------+")
+        print(f"|  Room ID: {room_id:6}       |")
+        print(f"+-----------------------+")
         print(f"You joined as: {role}")
 
         if role == "viewer":

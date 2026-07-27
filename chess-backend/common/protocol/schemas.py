@@ -114,6 +114,10 @@ class GameStartPayload(BaseModel):
     color: str  # 'w' or 'b'
     opponent: str
     room_id: Optional[str] = None
+    board: list[list[str]]
+    scores: dict[str, int]
+    game_over: bool = False
+    winner: Optional[str] = None
 
 class MovePayload(BaseModel):
     session_token: str
@@ -138,6 +142,10 @@ class MoveBroadcastPayload(BaseModel):
     dst_row: int
     dst_col: int
     color: str
+    board: list[list[str]]
+    scores: dict[str, int]
+    game_over: bool = False
+    winner: Optional[str] = None
 
 
 class GameEndPayload(BaseModel):
