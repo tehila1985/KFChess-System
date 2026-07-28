@@ -9,13 +9,19 @@ import asyncio
 import logging
 from typing import Any, Callable, Dict, Optional, Set
 
+from server.directories.base import AbstractConnectionDirectory
 
-class ConnectionHub:
+
+class ConnectionHub(AbstractConnectionDirectory):
     """
     Registry mapping connection_id → websocket.
 
     Also tracks optional session_token → connection_id for authenticated users.
     No module accesses internal dicts directly — everything goes through methods.
+
+    In-memory implementation of AbstractConnectionDirectory (see
+    server/directories/base.py) — the Phase 1 Redis-backed implementation
+    will be a drop-in replacement behind the same interface.
     """
 
     def __init__(self, logger: Optional[logging.Logger] = None) -> None:

@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 from server.config_loader import load_settings
 from server.domain.player import Player
-from server.services.matchmaking_service import MatchmakingService, _QueueEntry
+from server.services.matchmaking_service import MatchmakingService
 
 
 # ── Fakes ─────────────────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ class TestMatchmakingService:
         p = make_player("alice", 1200, "c1")
         mm.enqueue(p)
         # Fake the enqueued_at to be in the past
-        mm._queue[0].enqueued_at = 0.0  # far in the past
+        mm._queue._queue[0].enqueued_at = 0.0  # far in the past
         await mm._tick()
         import json
         msgs = hub.sent.get("c1", [])

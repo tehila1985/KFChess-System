@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import logging
 import random
-import string
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
+from server.directories.base import AbstractRoomRegistry
+from server.directories.in_memory import InMemoryRoomRegistry
 from server.domain.enums import RoomRole
 from server.domain.player import Player
 from server.domain.room import Room
@@ -46,7 +47,12 @@ class RoomService:
     """
     Manages room creation, joining, and game start.
 
-    Constructor parameters (DI): settings, factory, hub, game_handler, logger.
+    Room storage is delegated to an AbstractRoomRegistry (in-memory today,
+    Redis-backed in Phase 1 of the cloud-scale migration — see
+    .github/Server_Design_Implementation_Plan.md) so this class never touches
+    a data structure directly.
+
+    Constructor parameters (DI): settings, factory, hub, game_handler, logger, registry.
     """
 
     def __init__(
@@ -57,13 +63,14 @@ class RoomService:
         game_handler: Any,       # GameHandler
         id_generator: RoomIdGenerator,
         logger: logging.Logger,
+        registry: Optional[AbstractRoomRegistry] = None,
     ) -> None:
         self._factory = factory
         self._hub = hub
         self._game_handler = game_handler
         self._id_gen = id_generator
         self._log = logger
-        self._rooms: Dict[str, Room] = {}
+        self._rooms: AbstractRoomRegistry = registry if registry is not None else InMemoryRoomRegistry()
 
     # ── Public API ────────────────────────────────────────────────────
 
@@ -75,11 +82,11 @@ class RoomService:
         """
         room_id = self._id_gen.generate()
         # Ensure uniqueness (collision extremely unlikely but guarded)
-        while room_id in self._rooms:
+        while self._rooms.exists(room_id):
             room_id = self._id_gen.generate()
 
         room = Room(room_id=room_id, owner=owner, white=owner)
-        self._rooms[room_id] = room
+        self._rooms.create(room)
         self._log.info("room_created room_id=%s owner=%s", room_id, owner.username)
         return room_id
 
@@ -119,10 +126,11 @@ class RoomService:
                 if session is not None:
                     session.add_viewer(player.conn_id)
 
+        self._rooms.save(room)
         return JoinResult(role=role, room_id=room_id, game_started=room.is_full())
 
     def get_room(self, room_id: str) -> Optional[Room]:
-        """Return the Room by ID — never exposes internal dict."""
+        """Return the Room by ID — never exposes internal storage."""
         return self._rooms.get(room_id)
 
     async def start_game_if_ready(self, room_id: str) -> bool:
@@ -146,6 +154,7 @@ class RoomService:
 
         self._game_handler.register_session(session)
         room.game_id = session.game_id
+        self._rooms.save(room)
         await session.start()
         self._log.info("room_game_started room_id=%s game_id=%s", room_id, session.game_id)
         return True
