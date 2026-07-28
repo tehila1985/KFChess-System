@@ -367,12 +367,19 @@ not a connectable address on Windows.
 ## Test Layout (`tests/`)
 
 - **`tests/unit/`** — one file per phase (`test_phase1_foundations.py` …
-  `test_phase7_disconnect.py`) plus `test_gui_network_move_requester.py`.
-  Pure logic: config loading, envelope round-trip, `ConnectionHub`,
-  `elo.py` (hand-computed scenarios), `AuthService`/`UserRepository`
-  (fakes + a temp SQLite file), `MatchmakingService` pairing/timeout
-  rules, `RoomService`/`RoomIdGenerator`, `DisconnectMonitor` (fake
-  clock), `GameSession` move handling.
+  `test_phase7_disconnect.py`). Pure logic: config loading, envelope
+  round-trip, `ConnectionHub`, `elo.py` (hand-computed scenarios),
+  `AuthService`/`UserRepository` (fakes + a temp SQLite file),
+  `MatchmakingService` pairing/timeout rules, `RoomService`/
+  `RoomIdGenerator`, `DisconnectMonitor` (fake clock), `GameSession` move
+  handling. Both loggers (`test_loggers.py`) and the entire GUI client are
+  covered here too, since they're pure logic given a fake network/session:
+  `test_gui_widgets.py`, one file per scene
+  (`test_gui_{home,auth,play,room,game}_scene.py`),
+  `test_gui_network_move_requester.py`, `test_gui_app.py` (scene dispatch
+  only — `App.run()` itself opens a real window, not testable headlessly),
+  and the terminal client's own screens/shell (`test_cli_screens.py`,
+  `test_cli_game_screen.py`, `test_shell_ui.py`).
 - **`tests/integration/`** — `test_phase1_ping_pong.py`: router + hub
   wiring over a real socket, no service logic yet.
 - **`tests/e2e/`** — real `websockets.serve()` test servers on dedicated
@@ -386,8 +393,9 @@ not a connectable address on Windows.
   `loop.run_in_executor` since the test's own server shares the test's
   event loop).
 
-Run everything: `cd chess-backend && python -m pytest -q` (143 tests,
-all green as of this writing).
+Run everything: `cd chess-backend && python -m pytest -q` (296 tests,
+all green as of this writing; `--cov=server --cov=client --cov=common`
+reports 88% overall statement coverage).
 
 ## Running It
 
