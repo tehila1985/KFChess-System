@@ -236,9 +236,9 @@ class FakeFactory:
     def __init__(self):
         self._counter = 0
 
-    def create(self, white=None, black=None, room_id=None):
+    def create(self, white=None, black=None, room_id=None, game_id=None):
         self._counter += 1
-        s = FakeSession(f"game_{self._counter}")
+        s = FakeSession(game_id or f"game_{self._counter}")
         s.white, s.black = white, black
         return s
 

@@ -8,13 +8,17 @@ written to whichever local conn_id it's addressed to. No business logic
 lives here: auth, matchmaking, rooms, and game state are entirely the
 Shard's responsibility (shard/main.py).
 
-Phase 2 has exactly one Shard, so routing is trivial: every inbound event
-goes to the single configured shard_id. Phase 3 (many shards) will need the
-Gateway to learn each in-game connection's shard affinity (e.g. a
-"conn:{conn_id}:shard" Redis key written when the Game Allocator places a
-match) — deliberately not built here, since Phase 2's only variable is
-"does the Gateway/Shard network hop work at all," not "does multi-shard
-routing work."
+Phase 3 update: outbound is now a wildcard subscription
+("shard.*.outbound") so this Gateway receives replies from *any* Shard,
+not just its configured default. Inbound routing for MOVE/RESIGN consults
+"conn:{conn_id}:shard" in Redis (written by whichever Shard actually ended
+up owning that connection's GameSession — see
+server/services/game_handoff.py) so those messages reach the right Shard
+even if the Game Allocator placed the game somewhere other than this
+Gateway's default. Every other message type (LOGIN/REGISTER/PLAY_*/ROOM_*)
+is stateless across Shards (same Redis, same users DB) and always goes to
+this Gateway's own configured default shard_id — no need to look anything
+up for those.
 
 Run: python -m gateway.main  (needs Redis + NATS reachable — see docker-compose.yml)
 """
@@ -63,8 +67,13 @@ async def serve(settings=None, server_logger=None, nats_client=None, redis_clien
     if redis_client is None:
         redis_client = redis_lib.Redis.from_url(settings.backend.redis_url, decode_responses=True)
 
-    inbound_subject = f"shard.{shard_id}.inbound"
-    outbound_subject = f"shard.{shard_id}.outbound"
+    default_inbound_subject = f"shard.{shard_id}.inbound"
+    outbound_wildcard_subject = "shard.*.outbound"
+
+    # Message types whose active GameSession may live on a shard other than
+    # this Gateway's configured default — everything else is stateless
+    # across shards (shared Redis, shared users DB) and always goes home.
+    _GAME_SCOPED_TYPES = {"MOVE", "RESIGN"}
 
     connections: dict[str, "websockets.asyncio.server.ServerConnection"] = {}
 
@@ -82,7 +91,28 @@ async def serve(settings=None, server_logger=None, nats_client=None, redis_clien
         except Exception as exc:
             raw_logger.warning("gateway_outbound_send_error conn_id=%s exc=%s", event.get("conn_id"), exc)
 
-    subscription = await nats_client.subscribe(outbound_subject, cb=on_outbound)
+    subscription = await nats_client.subscribe(outbound_wildcard_subject, cb=on_outbound)
+
+    def _game_shard_subject_or_none(conn_id: str) -> "str | None":
+        """The Shard that owns conn_id's active game, if any and if
+        different from this Gateway's own default."""
+        target_shard = redis_client.get(f"conn:{conn_id}:shard")
+        if target_shard is None:
+            return None
+        if isinstance(target_shard, bytes):
+            target_shard = target_shard.decode()
+        if target_shard == shard_id:
+            return None
+        return f"shard.{target_shard}.inbound"
+
+    def _inbound_subject_for(conn_id: str, raw_message: str) -> str:
+        try:
+            msg_type = json.loads(raw_message).get("type")
+        except Exception:
+            return default_inbound_subject
+        if msg_type not in _GAME_SCOPED_TYPES:
+            return default_inbound_subject
+        return _game_shard_subject_or_none(conn_id) or default_inbound_subject
 
     async def connection_handler(websocket):
         conn_id = str(uuid.uuid4())
@@ -90,14 +120,15 @@ async def serve(settings=None, server_logger=None, nats_client=None, redis_clien
         connections[conn_id] = websocket
         server_logger.connection_opened(conn_id, remote)
         await nats_client.publish(
-            inbound_subject,
+            default_inbound_subject,
             json.dumps({"kind": "connected", "conn_id": conn_id, "remote": remote}).encode(),
         )
 
         try:
             async for raw_message in websocket:
+                subject = _inbound_subject_for(conn_id, raw_message)
                 await nats_client.publish(
-                    inbound_subject,
+                    subject,
                     json.dumps({"kind": "message", "conn_id": conn_id, "raw": raw_message}).encode(),
                 )
         except websockets.exceptions.ConnectionClosed:
@@ -105,40 +136,66 @@ async def serve(settings=None, server_logger=None, nats_client=None, redis_clien
         finally:
             connections.pop(conn_id, None)
             server_logger.connection_closed(conn_id, remote)
-            await nats_client.publish(
-                inbound_subject,
-                json.dumps({"kind": "disconnected", "conn_id": conn_id, "remote": remote}).encode(),
-            )
+            disconnect_event = json.dumps({"kind": "disconnected", "conn_id": conn_id, "remote": remote}).encode()
+            # Always tell the default shard (it may have this conn_id queued
+            # in matchmaking) *and* the shard actually running this conn_id's
+            # game, if placement put it somewhere else — either could have
+            # cleanup to do, and a disconnect must never go unnoticed on
+            # either side.
+            await nats_client.publish(default_inbound_subject, disconnect_event)
+            game_shard_subject = _game_shard_subject_or_none(conn_id)
+            if game_shard_subject is not None:
+                await nats_client.publish(game_shard_subject, disconnect_event)
 
-    heartbeat_key = f"shard:{shard_id}:heartbeat"
+    known_shards_key = "shards:known"
+
+    def _heartbeat_key(sid: str) -> str:
+        return f"shard:{sid}:heartbeat"
 
     async def shard_watchdog_loop():
         """
         Detect a hard-killed Shard process via its Redis heartbeat key
-        expiring (see shard/main.py), and tell every client connected to
-        *this* Gateway — since Phase 2 has exactly one Shard, "the shard is
-        gone" means "every one of this gateway's in-progress games is gone."
-        This is the observable, client-visible signal for
-        Server_Design.md §1 Q4 / §5's "aborted" outcome that Phase 2's own
-        DoD requires end-to-end, not just as a server-side log line.
+        expiring (see shard/main.py's heartbeat_loop), and tell every
+        client whose connection was actually on that shard — for
+        connections with no "conn:{conn_id}:shard" entry (never in a game,
+        or in a game still on this Gateway's own default), that's this
+        Gateway's own default shard_id.
+
+        Watches every shard in "shards:known" (Phase 3, many shards), not
+        just this Gateway's own default (Phase 2, exactly one) — a game
+        placed elsewhere by the Allocator must still produce this same
+        client-visible signal if *that* shard dies, not just the default.
+        This is the observable signal for Server_Design.md §1 Q4/§5's
+        "aborted" outcome.
         """
-        shard_was_up = None  # unknown until the first observed heartbeat
+        known_up: dict[str, bool] = {}
         try:
             while True:
                 await asyncio.sleep(1.0)
-                shard_is_up = bool(redis_client.exists(heartbeat_key))
-                if shard_was_up is True and shard_is_up is False:
-                    raw_logger.warning("shard_unavailable shard_id=%s", shard_id)
-                    err = Envelope(
-                        type=MessageType.ERROR,
-                        payload=ErrorPayload(reason="shard_unavailable").model_dump(),
-                    ).to_json()
-                    for conn_id, ws in list(connections.items()):
-                        try:
-                            await ws.send(err)
-                        except Exception:
-                            pass
-                shard_was_up = shard_is_up
+                watched = {shard_id} | {
+                    (s.decode() if isinstance(s, bytes) else s)
+                    for s in redis_client.smembers(known_shards_key)
+                }
+                for sid in watched:
+                    is_up = bool(redis_client.exists(_heartbeat_key(sid)))
+                    was_up = known_up.get(sid)
+                    if was_up is True and is_up is False:
+                        raw_logger.warning("shard_unavailable shard_id=%s", sid)
+                        err = Envelope(
+                            type=MessageType.ERROR,
+                            payload=ErrorPayload(reason="shard_unavailable").model_dump(),
+                        ).to_json()
+                        for conn_id, ws in list(connections.items()):
+                            conn_shard = redis_client.get(f"conn:{conn_id}:shard") or shard_id
+                            if isinstance(conn_shard, bytes):
+                                conn_shard = conn_shard.decode()
+                            if conn_shard != sid:
+                                continue
+                            try:
+                                await ws.send(err)
+                            except Exception:
+                                pass
+                    known_up[sid] = is_up
         except asyncio.CancelledError:
             pass
 

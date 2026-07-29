@@ -32,7 +32,6 @@ class GameSessionFactory:
         rating_service: RatingService,
         settings: Settings,
         logger: logging.Logger,
-        allocator: Optional[Any] = None,  # GameAllocator — Phase 2+, optional for backward compat
     ) -> None:
         self._hub = hub
         self._user_repo = user_repo
@@ -40,13 +39,13 @@ class GameSessionFactory:
         self._rating = rating_service
         self._settings = settings
         self._log = logger
-        self._allocator = allocator
 
     def create(
         self,
         white: Player,
         black: Player,
         room_id: Optional[str] = None,
+        game_id: Optional[str] = None,
     ) -> GameSession:
         """
         Create and return a new GameSession for the given players.
@@ -55,18 +54,24 @@ class GameSessionFactory:
             white: The player who will play White.
             black: The player who will play Black.
             room_id: Optional room ID (None for matchmaking games).
+            game_id: Explicit game_id (Phase 3 of
+                .github/Server_Design_Implementation_Plan.md: the caller
+                allocates a shard for this game_id *before* deciding whether
+                to construct it locally or hand it off to another Shard
+                process — see server/services/game_handoff.py — so the id
+                has to exist before this call, not be invented by it).
+                Auto-generated if omitted, for callers that don't need it
+                (single-shard / monolith usage, unchanged from Phase 0-2).
 
         Returns:
             A new GameSession instance (not yet started — caller must await .start()).
         """
-        game_id = str(uuid.uuid4())
+        if game_id is None:
+            game_id = str(uuid.uuid4())
         self._log.info(
             "game_session_creating game_id=%s white=%s black=%s room_id=%s",
             game_id, white.username, black.username, room_id,
         )
-        if self._allocator is not None:
-            shard_id = self._allocator.allocate(game_id)
-            self._log.info("game_allocated game_id=%s shard_id=%s", game_id, shard_id)
         return GameSession(
             game_id=game_id,
             white=white,

@@ -84,12 +84,24 @@ def _room_from_json(raw: str) -> Room:
 
 
 class RedisMatchQueue(AbstractMatchQueue):
-    """ELO-scored sorted set, per Server_Design.md §1 Q2."""
+    """
+    ELO-scored sorted set, per Server_Design.md §1 Q2.
+
+    Phase 3 of .github/Server_Design_Implementation_Plan.md: multiple
+    Matchmaker replicas (one per Shard process, or standalone) tick this
+    same queue concurrently. Reading the queue and removing matched/expired
+    entries is a read-then-write sequence, not a single atomic Redis
+    command, so pairs_within_range/pop_expired hold a short Redis-backed
+    lock for their whole critical section — the actual regression this
+    guards is two replicas both reading the same two queued players before
+    either has removed them, and both creating a game for the same pair.
+    """
 
     def __init__(self, redis_client: Any, key: str = "matchmaking:queue") -> None:
         self._redis = redis_client
         self._key = key
         self._ts_prefix = f"{key}:ts:"
+        self._lock_key = f"{key}:lock"
 
     def enqueue(self, player: Player) -> None:
         if self._redis.zscore(self._key, player.conn_id) is not None:
@@ -116,36 +128,60 @@ class RedisMatchQueue(AbstractMatchQueue):
                 players.append(_player_from_json(raw))
         return players
 
+    def _with_lock(self, suffix: str, fn):
+        """
+        Run fn() while holding a short-lived Redis lock, or return [] without
+        running it if another replica already holds it — that replica's own
+        tick will cover this round's pairing/expiry, so skipping is correct,
+        not lossy.
+        """
+        lock = self._redis.lock(f"{self._lock_key}:{suffix}", timeout=5, blocking_timeout=0)
+        if not lock.acquire():
+            return []
+        try:
+            return fn()
+        finally:
+            try:
+                lock.release()
+            except Exception:
+                pass  # lock already expired — another replica's problem now, not ours
+
     def pop_expired(self, timeout_seconds: float) -> List[Player]:
-        now = time.monotonic()
-        expired: List[Player] = []
-        for player in self._all_players():
-            ts_raw = _s(self._redis.get(f"{self._ts_prefix}{player.conn_id}"))
-            enqueued_at = float(ts_raw) if ts_raw is not None else now
-            if (now - enqueued_at) >= timeout_seconds:
-                expired.append(player)
-        for player in expired:
-            self.dequeue(player.conn_id)
-        return expired
+        def _do():
+            now = time.monotonic()
+            expired: List[Player] = []
+            for player in self._all_players():
+                ts_raw = _s(self._redis.get(f"{self._ts_prefix}{player.conn_id}"))
+                enqueued_at = float(ts_raw) if ts_raw is not None else now
+                if (now - enqueued_at) >= timeout_seconds:
+                    expired.append(player)
+            for player in expired:
+                self.dequeue(player.conn_id)
+            return expired
+
+        return self._with_lock("expire", _do)
 
     def pairs_within_range(self, match_range: int) -> List[Tuple[Player, Player]]:
-        players = self._all_players()  # ELO-ascending
-        matched: set[str] = set()
-        pairs: List[Tuple[Player, Player]] = []
-        for i, a in enumerate(players):
-            if a.conn_id in matched:
-                continue
-            for b in players[i + 1 :]:
-                if b.conn_id in matched:
+        def _do():
+            players = self._all_players()  # ELO-ascending
+            matched: set[str] = set()
+            pairs: List[Tuple[Player, Player]] = []
+            for i, a in enumerate(players):
+                if a.conn_id in matched:
                     continue
-                if abs(a.elo - b.elo) <= match_range:
-                    matched.add(a.conn_id)
-                    matched.add(b.conn_id)
-                    pairs.append((a, b))
-                    break
-        for conn_id in matched:
-            self.dequeue(conn_id)
-        return pairs
+                for b in players[i + 1 :]:
+                    if b.conn_id in matched:
+                        continue
+                    if abs(a.elo - b.elo) <= match_range:
+                        matched.add(a.conn_id)
+                        matched.add(b.conn_id)
+                        pairs.append((a, b))
+                        break
+            for conn_id in matched:
+                self.dequeue(conn_id)
+            return pairs
+
+        return self._with_lock("pair", _do)
 
 
 class RedisRoomRegistry(AbstractRoomRegistry):

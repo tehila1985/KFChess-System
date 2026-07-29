@@ -67,6 +67,10 @@ class GameHandler:
     def get_session(self, game_id: str) -> Optional[GameSession]:
         return self._sessions.get(game_id)
 
+    def active_game_count(self) -> int:
+        """Load metric reported in this Shard's heartbeat (Phase 3)."""
+        return len(self._sessions)
+
     def get_session_by_user_id(self, user_id: int) -> Optional[GameSession]:
         game_id = self._user_id_to_game.get(user_id)
         if game_id is None:

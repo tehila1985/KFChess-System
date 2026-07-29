@@ -102,18 +102,21 @@ async def serve(settings=None, server_logger=None, nats_client=None, redis_clien
     factory = GameSessionFactory(
         hub=hub, user_repo=user_repo, game_repo=game_repo,
         rating_service=rating_svc, settings=settings, logger=raw_logger,
-        allocator=allocator,
     )
 
     matchmaking = MatchmakingService(
         settings=settings, factory=factory, hub=hub,
         game_handler=game_handler, logger=raw_logger, queue=match_queue,
+        allocator=allocator, nats_client=nats_client, own_shard_id=shard_id,
+        redis_client=redis_client,
     )
     room_id_gen = RoomIdGenerator(settings)
     room_svc = RoomService(
         settings=settings, factory=factory, hub=hub,
         game_handler=game_handler, id_generator=room_id_gen, logger=raw_logger,
         registry=room_registry,
+        allocator=allocator, nats_client=nats_client, own_shard_id=shard_id,
+        redis_client=redis_client,
     )
 
     router = MessageRouter(hub=hub, logger=raw_logger)
@@ -163,21 +166,40 @@ async def serve(settings=None, server_logger=None, nats_client=None, redis_clien
             server_logger.connection_closed(conn_id, event.get("remote", ""))
             if session is not None:
                 asyncio.ensure_future(session.handle_disconnect(conn_id))
+        elif kind == "create_game":
+            # Phase 3: another Shard's Matchmaker/RoomService won the
+            # pairing/room-fill race but the Game Allocator picked *this*
+            # shard as the least-loaded place to actually run it.
+            from server.services.game_handoff import finalize_local_game, player_from_dict
+
+            white = player_from_dict(event["white"])
+            black = player_from_dict(event["black"])
+            await finalize_local_game(
+                factory, game_handler, hub, white, black, event["game_id"],
+                room_id=event.get("room_id"),
+                viewer_conn_ids=event.get("viewer_conn_ids"),
+                send_match_found=event.get("send_match_found", False),
+                logger=raw_logger,
+                redis_client=redis_client, own_shard_id=shard_id,
+            )
         else:
             raw_logger.warning("shard_inbound_unknown_kind=%s", kind)
 
     subscription = await nats_client.subscribe(inbound_subject, cb=on_inbound)
     raw_logger.info("shard_started shard_id=%s subject=%s", shard_id, inbound_subject)
 
-    heartbeat_key = f"shard:{shard_id}:heartbeat"
+    allocator.register_self()
 
     async def heartbeat_loop():
         # A dead-man's switch: SET ... EX so a killed (not gracefully
         # stopped) shard process's heartbeat key simply expires on its own —
         # the Gateway doesn't need clock comparison, just key existence.
+        # Phase 3: the heartbeat also carries this shard's current load
+        # (active game count) so the Allocator can place new games on
+        # whichever known shard is least busy.
         try:
             while True:
-                redis_client.set(heartbeat_key, "1", ex=5)
+                allocator.report_load(game_handler.active_game_count())
                 await asyncio.sleep(1.0)
         except asyncio.CancelledError:
             pass

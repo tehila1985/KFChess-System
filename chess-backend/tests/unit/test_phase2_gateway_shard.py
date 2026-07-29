@@ -33,12 +33,19 @@ from server.config_loader import load_settings
 class FakeRedis:
     def __init__(self):
         self.store: dict[str, str] = {}
+        self.sets: dict[str, set] = {}
 
     def set(self, key, value, ex=None):
         self.store[key] = value
 
     def get(self, key):
         return self.store.get(key)
+
+    def sadd(self, key, member):
+        self.sets.setdefault(key, set()).add(member)
+
+    def smembers(self, key):
+        return self.sets.get(key, set())
 
 
 class TestGameAllocator:

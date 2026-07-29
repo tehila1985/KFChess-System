@@ -53,9 +53,9 @@ class FakeFactory:
         self.created: list[tuple] = []
         self._counter = 0
 
-    def create(self, white: Player, black: Player, room_id=None) -> FakeSession:
+    def create(self, white: Player, black: Player, room_id=None, game_id=None) -> FakeSession:
         self._counter += 1
-        s = FakeSession(f"game_{self._counter}")
+        s = FakeSession(game_id or f"game_{self._counter}")
         s.white = white
         s.black = black
         self.created.append((white.username, black.username))

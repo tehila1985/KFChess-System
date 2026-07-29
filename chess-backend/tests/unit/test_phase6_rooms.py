@@ -54,9 +54,9 @@ class FakeFactory:
         self.sessions: list[FakeSession] = []
         self._counter = 0
 
-    def create(self, white, black, room_id=None):
+    def create(self, white, black, room_id=None, game_id=None):
         self._counter += 1
-        s = FakeSession(f"g{self._counter}")
+        s = FakeSession(game_id or f"g{self._counter}")
         s.white = white
         s.black = black
         self.sessions.append(s)
