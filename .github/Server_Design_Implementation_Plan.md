@@ -22,6 +22,22 @@ many). Combining two of these in one phase is where migrations actually
 go wrong — you lose the ability to tell which change broke what. Each
 phase below moves exactly one axis.
 
+**On infrastructure this plan doesn't have yet:** Phases 0–2 and 4 are
+fully provable with tools already available in a normal dev environment —
+Docker Desktop running Redis/NATS/Postgres containers, and Python
+subprocesses standing in for separate hosts. Phases 3, 5, 6, and 7
+originally assumed a live Kubernetes cluster, multiple real regions, a
+staging environment with a scheduler, and a load-generating fleet — none
+of which exist in a local sandbox (this repo's own dev environment has
+`kubectl` installed but no cluster behind it, for instance). Rather than
+write untested manifests and untestable claims for infrastructure that
+isn't there, those four phases below are scoped to what a single local
+machine with Docker actually *can* prove — real placement logic, real
+concurrency-safety, real chaos scenarios, real measured local capacity
+numbers — with the genuinely infrastructure-bound parts (a live cluster,
+real regions, a staging scheduler, cloud-scale numbers) named explicitly
+as deferred, not faked.
+
 ---
 
 ## Phase Overview
@@ -31,11 +47,11 @@ phase below moves exactly one axis.
 | 0 | Seams or it doesn't happen | none (docker-compose gets new services, unused) | interfaces only | Yes — behavior-identical |
 | 1 | Shared state, still 1 process | Redis | `ConnectionHub`, `MatchmakingService`, `RoomService` get Redis-backed variants | Yes — identical behavior, now horizontally-*ready* |
 | 2 | Real Gateway/Shard network hop, still 1 of each | NATS | new `gateway/` and `shard/` entrypoints | Yes — same capacity as today, new failure modes to watch |
-| 3 | Horizontal scale-out, one region | K8s/K3s, load balancer, autoscaling | Game Allocator gets real placement logic | Yes — this is "cloud-scale, one region" |
+| 3 | Horizontal scale-out, one region — proven locally | multiple local Gateway/Shard processes, docker-compose scale; K8s manifests written but not applied (no cluster in this environment) | Game Allocator gets real placement logic | Locally proven; real cluster/autoscaling behavior deferred until a cluster exists |
 | 4 | Durable store swap | PostgreSQL, write-behind queue (NATS JetStream) | `UserRepository`/`GameRepository` Postgres impls | Yes |
-| 5 | Multi-region | regional K8s clusters, GeoDNS, replicated control plane | Matchmaker region-affinity | Yes — this is the full target design |
-| 6 | Resilience & security hardening | chaos-testing harness, rate limiter | — | Hardens what's already live |
-| 7 | Full-scale load test & calibration | load-test harness (Observability) | capacity constants everywhere | Confirms the numbers in `Server_Design.md` §1 for real |
+| 5 | Multi-region — affinity logic proven with simulated regions | two locally-run shard/gateway groups tagged by region; no real second region/GeoDNS available here | Matchmaker region-affinity | Locally proven decision logic; real cross-region latency/GeoDNS deferred until real regions exist |
+| 6 | Resilience & security hardening — runnable on demand | local chaos script, rate limiter | — | Hardens what's already live; scheduled staging runs deferred until a staging environment exists |
+| 7 | Load test & capacity calibration at local-machine scale | local load-test harness | capacity constants everywhere | Confirms real per-process numbers on this machine; cloud-scale figures are an explicit formula, not a measurement |
 
 ---
 
@@ -152,43 +168,62 @@ gateway-local state, is what makes reconnect work).
 
 ---
 
-## Phase 3 — Horizontal scale-out (one region, many replicas)
+## Phase 3 — Horizontal scale-out (one region, proven locally — no live cluster required)
 
-**Goal:** many Gateways, many Shards, a real Game Allocator making real
-placement decisions — this is "cloud-scale" for one region.
+**Reality check:** this environment has `kubectl` installed but no
+cluster behind it — no kind/k3d/minikube, no cloud cluster. Writing K8s
+YAML and calling the phase "done" without ever applying it would be
+exactly the kind of untested claim this plan's own discipline (green
+tests before moving on) argues against. Instead, this phase proves the
+*logic* that has to be correct before a cluster ever matters — real
+placement decisions, real concurrency-safety — using what's already
+available locally: multiple `gateway/main.py` / `shard/main.py`
+processes on one machine (the same subprocess harness Phase 2's e2e test
+already uses, extended from 1 shard to N), plus `docker compose` for the
+supporting Redis/NATS/Postgres containers. The K8s manifests are still
+written, since they're needed the moment a real cluster exists, but their
+correctness claim stops at "schema-valid YAML" — not "deployed and
+load-tested," which needs infrastructure this phase doesn't have.
 
 **Tasks:**
-- Game Allocator becomes its own service: consumes match/room-ready
-  events from NATS, reads `shard:{id}:load` capacity keys from Redis
-  (populated by each Shard's own heartbeat, per `Server_Design.md` §1
-  Q4), picks a shard with headroom, writes the `game:{game_id}` mapping.
-  Implement as a horizontally-scalable stateless consumer group (NATS
-  queue groups) from the start — no single-instance version to
-  deprecate later.
-- Matchmaker becomes its own replicated service reading/writing the
-  Redis sorted set from Phase 1; multiple replicas process the queue
-  concurrently (partition by a hash of `user_id` or by region tag on the
-  queue entries to avoid duplicate-pairing races — needs an explicit
-  concurrency-safety test: two Matchmaker replicas racing to pair the
-  same two queued players must not produce two games).
-- Kubernetes/K3s manifests: separate Deployments for API Gateway, WS
-  Gateway, Matchmaker, Game Allocator, Game Server Shard, each with its
-  **own** HorizontalPodAutoscaler target metric — connection count for
-  WS Gateway, concurrent-game-count/CPU for Shard (per
+- Game Allocator becomes real: consumes match/room-ready events, reads
+  `shard:{id}:load` keys from Redis (the heartbeat key Phase 2 already
+  writes gets a load-count field added), picks the least-loaded of N
+  locally-running Shard processes, writes the `game:{game_id}` mapping.
+  Verified by checking which shard process actually ended up with the
+  game, not just that the game worked.
+- Matchmaker becomes its own replicated loop: run 2 local processes both
+  reading/writing the Redis sorted set from Phase 1, with an explicit
+  concurrency-safety test — two Matchmaker replicas racing to pair the
+  same two queued players must not produce two games (fully provable
+  locally with two Python processes sharing one Redis; no cluster
+  needed).
+- A local horizontal-scale-out harness (extends Phase 2's
+  subprocess-spawning test helpers): starts N Gateway + M Shard
+  processes, drives dozens-to-low-hundreds of concurrent simulated games
+  through them, kills and restarts one Shard process mid-run, and
+  asserts only *that* Shard's own in-flight games were affected — the
+  rest kept running. This is the local proxy for "rolling restart of the
+  fleet," at a scale this one machine can actually generate.
+- Kubernetes/K3s manifests (`deploy/k8s/`): separate Deployments for API
+  Gateway, WS Gateway, Matchmaker, Game Allocator, Game Server Shard,
+  each with its own HorizontalPodAutoscaler target metric (connection
+  count for WS Gateway, concurrent-game-count/CPU for Shard, per
   `Server_Design.md` §4's explicit warning against conflating these).
-- Load balancer / ingress in front of the WS Gateway fleet; health/
-  readiness probes for every component (a Shard reporting itself
-  "unhealthy" must stop receiving new game placements without dropping
-  its *current* games).
+  Written now so they're ready the moment a real cluster exists;
+  validated here only via `kubectl apply --dry-run=client -f
+  deploy/k8s/` (schema correctness), not deployed.
 
-**Definition of done:** a load test (see Phase 7 for the full-scale
-version; here, a *modest* one — hundreds to low thousands of simulated
-concurrent games) survives a rolling restart of the Shard fleet and of
-the Gateway fleet independently, with no client-visible game loss beyond
-the individually-affected in-flight games on a restarted pod (matches
-the accepted blast-radius tradeoff in `Server_Design.md` §1 Q4). Two
-Matchmaker replicas running concurrently never double-pair a player
-(explicit concurrency test, not just "seemed fine manually").
+**Definition of done:** the local N-Shard/M-Gateway harness survives
+killing and restarting one Shard process with no client-visible loss
+beyond that shard's own in-flight games; two local Matchmaker replicas
+never double-pair a player (explicit concurrency test, not "seemed fine
+manually"); `deploy/k8s/*.yaml` passes `kubectl apply --dry-run=client`.
+Explicitly **not** claimed by this phase: real autoscaling behavior, real
+load-balancer/ingress behavior, or any number that depends on actual
+cluster networking — those need a real cluster and are deferred to
+whenever one is provisioned, at which point this phase's manifests are
+the starting point, not a rewrite.
 
 ---
 
@@ -231,53 +266,71 @@ parametrized-fixture pattern used in Phase 1.
 
 ---
 
-## Phase 5 — Multi-region rollout
+## Phase 5 — Multi-region rollout (affinity logic proven locally with simulated regions)
 
-**Goal:** the full target topology — regional Gateway+Shard pairs, a
-region-aware Matchmaker, a replicated global control plane.
+**Reality check:** there is no second region, no GeoDNS, and no real
+cross-region network reachable from this environment. This phase proves
+the *region-affinity decision logic* — the part that's actually code and
+actually testable without real infrastructure — using two locally-run
+shard/gateway groups tagged with a fake region label. Real GeoDNS/anycast
+and real cross-region latency numbers are explicitly deferred to whenever
+real regional infrastructure exists; fabricating them here would be a
+number with no meaning behind it.
 
 **Tasks:**
-- Stand up a second region's full stack (Gateway, Shard, Matchmaker,
-  Allocator replicas) pointed at a *replicated* Redis/NATS (e.g. Redis
-  Cluster with cross-region replication, or a per-region Redis with an
-  async replication bridge for the small slice of state that must be
-  globally visible — the `game:{game_id}` and `room:{room_id}` directory
-  keys specifically, since a player in one region must be able to join a
-  room created in another).
+- Run two local Gateway+Shard+Allocator groups tagged `region=local-a` /
+  `region=local-b` via a config value (not real geography), both against
+  the *same* local Redis/NATS — a real second region would need
+  cross-region replication of the `game:{game_id}`/`room:{room_id}`
+  directory keys, but simulating that replication's latency locally
+  would just be another fabricated number, so this phase tests the
+  affinity *decision*, not the replication itself.
 - Matchmaker gains the region-affinity heuristic from `Server_Design.md`
-  §1 Q2: prefer pairing within the same region/continent, fall back to
+  §1 Q2: prefer pairing within the same region tag, fall back to
   cross-region pairing only past a wait-time threshold (reuses the exact
   timeout-then-widen pattern `MatchmakingService` already has for
   ELO-range expiry — same mechanism, a second axis).
 - Game Allocator's placement preference: same-region as both matched
-  players first, nearest region second.
-- GeoDNS / anycast in front of the WS Gateway fleet so clients connect to
-  their nearest region without a manual region picker.
+  players first, other region second — verified by checking which of
+  the two local shard groups actually got the game.
+- An artificial delay (e.g. `asyncio.sleep` in a test-only wrapper around
+  the cross-region path) standing in for real inter-region latency,
+  used only to prove the affinity heuristic actually avoids crossing it
+  when possible — not presented as a real latency measurement.
 
-**Definition of done:** a client in region A can create a room and a
-client in region B can join it and play a full game, with the Game
-Server Shard placed in whichever region the Allocator chose — verified
-by checking which shard actually hosts the session, not just that the
-game worked. A simulated region outage (kill an entire region's
-Gateway+Shard deployment) results in new connections from that region's
-players routing to the next-nearest region, with existing cross-region
-games elsewhere unaffected.
+**Definition of done:** a simulated client tagged `region=local-a`
+matched against one tagged `region=local-b` only crosses regions after
+the configured wait threshold, and the Game Allocator places the game in
+the majority region when there is one — both verified by inspecting
+which local shard group actually got the game. Explicitly **not**
+claimed by this phase: real cross-region latency numbers, real GeoDNS
+behavior, or a real replicated control plane — those need real regions
+and are deferred until they exist.
 
 ---
 
-## Phase 6 — Resilience & Security Hardening
+## Phase 6 — Resilience & Security Hardening (runnable on demand, not on a schedule)
 
-**Goal:** turn the failure-mode table in `Server_Design.md` §5 and the
-security section §6 from design intent into tested behavior.
+**Reality check:** there is no staging environment and no CI/cron runner
+in this environment to run chaos tests "on a schedule." This phase builds
+the chaos harness and the hardening it verifies as real, runnable code —
+runnable on demand, locally, against the docker-compose stack — rather
+than skipping it entirely. Scheduling it against a real staging
+environment later is an ops/config step, not a code change, once that
+environment exists.
 
 **Tasks:**
-- Chaos-testing harness: scripted, repeatable fault injection for every
-  row of `Server_Design.md`'s reliability table (kill a Gateway pod, kill
-  a Shard pod, partition Redis, saturate the write-behind queue, drop a
-  region) run against a staging environment on a schedule, not just once.
-- Rate limiting at both Gateways (per-IP and per-account, on
+- Chaos-testing harness (`scripts/chaos/`): scripted, repeatable fault
+  injection runnable locally on demand — kill a Gateway process, kill a
+  Shard process, `docker network disconnect` to partition Redis or NATS
+  from the rest of the compose stack, saturate the Phase 4 write-behind
+  queue — one scenario per row of `Server_Design.md`'s reliability
+  table, each with an automated pass/fail assertion, not manual
+  observation.
+- Rate limiting at the Gateway (per-IP and per-account, on
   `LOGIN`/`REGISTER`/`MOVE` submission rate independent of game-logic
-  validation).
+  validation) — a Redis-backed token bucket so the limit holds across
+  multiple local Gateway processes; fully testable locally.
 - Session-token validation caching at the Gateway (short-TTL local cache
   in front of the Redis lookup) — add a metric for cache hit rate and an
   explicit test that a revoked/expired token is rejected within the
@@ -290,44 +343,56 @@ security section §6 from design intent into tested behavior.
   (`test_black_cannot_move_whites_piece`) already exists and must keep
   passing unmodified through every phase above.
 
-**Definition of done:** every chaos scenario has an automated pass/fail
-assertion (not manual observation), runs in CI or a scheduled staging
-job, and is green. Rate limits and token-cache TTLs are load-tested to
-confirm they don't themselves become the bottleneck.
+**Definition of done:** every scenario in `scripts/chaos/` has an
+automated pass/fail assertion and passes when run locally on demand.
+Rate limits and token-cache TTLs are exercised by the Phase 7 local
+load-test harness to confirm they don't themselves become the
+bottleneck at the scale this machine can generate. Explicitly **not**
+claimed by this phase: a scheduled staging job — that needs a staging
+environment and a scheduler, both deferred until they exist.
 
 ---
 
-## Phase 7 — Full-Scale Load Test & Capacity Calibration
+## Phase 7 — Load Test & Capacity Calibration (at local-machine scale)
 
-**Goal:** replace every estimated number in `Server_Design.md` §1 and §8
-with a measured one, at a scale that meaningfully approximates the
-target (10M concurrent players may not be affordable to *actually* run
-in a pre-production load test — approximate via a smaller multiple with
-the same per-shard/per-gateway ratios, and extrapolate linearly, which is
-valid as long as Phase 3–5 already proved horizontal scale-out has no
-hidden coordination bottleneck).
+**Reality check:** 10M concurrent players can't be simulated on one
+development machine, and there's no fleet of load-generating hosts
+available here. This phase measures real per-process capacity numbers
+*on this machine* — genuinely measured, not estimated — and turns the
+cloud-scale numbers in `Server_Design.md` §1/§8 into an explicit formula
+(measured local per-shard/per-gateway capacity × horizontal replica
+count) rather than pretending a local run can validate a cloud-scale
+number directly.
 
 **Tasks:**
-- Build (or adopt) a load-test client farm capable of simulating many
+- Build a local load-test harness (`scripts/loadtest/`) simulating many
   concurrent `GameSession`-driving connections at the real move cadence
-  (1 move/2s/player) — this is a first-class deliverable, not a
-  throwaway script, since every future capacity decision depends on it.
-- Measure, replacing the assumptions in `Server_Design.md` §8:
-  concurrent games sustainable per Shard pod; concurrent connections
-  sustainable per Gateway pod; sustained Postgres write-behind throughput
-  before backlog grows unbounded; real cross-region latency distribution
-  for the actual regions chosen.
+  (1 move/2s/player) against the Phase 2/3 local Gateway/Shard processes
+  — a first-class, reusable script, not a throwaway, since every future
+  capacity decision depends on it.
+- Measure, on this machine: concurrent games sustainable per single
+  Shard process before latency/CPU degrades; concurrent connections
+  sustainable per single Gateway process; sustained Postgres
+  write-behind throughput (Phase 4) before the JetStream backlog grows
+  unbounded.
 - Re-run the bandwidth calculation from `Server_Design.md` §1 Q3 against
-  *measured* payload sizes and message rates from this load test, not the
-  estimated ones, and confirm (or revise) the recommendation to move
-  `MOVE_BROADCAST`'s hot path to a delta-only payload.
-- Publish the calibrated numbers back into `Server_Design.md` §8,
-  closing out every open question it lists.
+  *measured* payload sizes and message rates from this local load test —
+  payload size doesn't change with scale, so this particular number
+  stays meaningful even measured locally — and confirm or revise the
+  recommendation to move `MOVE_BROADCAST`'s hot path to a delta-only
+  payload.
+- Publish the measured local-machine numbers into `Server_Design.md` §8
+  alongside the explicit extrapolation formula for cloud scale
+  (measured-per-pod × replica count), clearly labeled "measured locally"
+  vs. "extrapolated" so the two are never confused later.
 
-**Definition of done:** every "open question" in `Server_Design.md` §8
-has a measured answer, and the per-pod capacity numbers used by the
-Kubernetes HorizontalPodAutoscaler configs from Phase 3 are updated from
-assumed to measured values.
+**Definition of done:** concurrent-games-per-Shard-process,
+concurrent-connections-per-Gateway-process, and write-behind drain rate
+are all real measured numbers from a run on this machine, not estimates.
+`Server_Design.md` §8 is updated with those measured numbers and the
+extrapolation formula. Explicitly **not** claimed by this phase: a
+validated cloud-scale number — that requires the real fleet Phase 3/5's
+cloud rollout would eventually provide.
 
 ---
 
@@ -338,9 +403,9 @@ assumed to measured values.
 | 0 | No-op — pure additions, nothing depends on them yet. |
 | 1 | Config flag flips back to in-memory backends; Redis becomes unused again, not removed. |
 | 2 | Revert to the monolithic `server/main.py` entrypoint; Gateway/Shard split entrypoints are additive, the old one isn't deleted until Phase 3 is stable. |
-| 3 | Scale replicas back to one each; the K8s manifests support this as a config change, not a code change. |
+| 3 | Stop the extra local Shard/Gateway processes and go back to one of each; the Game Allocator's "pick least-loaded" logic degrades to "pick the only one" automatically. Once a real cluster exists, scaling replicas back to one there is a manifest config change, not a code change. |
 | 4 | Shadow-write period means SQLite is still authoritative until the explicit cutover flag flips — cutover is reversible until the flag flips a second time to remove SQLite writes entirely (a deliberate, separate, later step). |
-| 5 | Disable the second region's DNS entries; existing single-region traffic is unaffected since region-affinity is a preference, not a hard partition. |
+| 5 | Disable the second local region tag / stop pairing across it; existing single-region traffic is unaffected since region-affinity is a preference, not a hard partition. Once real regions exist, disabling GeoDNS entries for one is the equivalent production step. |
 | 6/7 | These phases harden and measure; they don't change production behavior by themselves, so "rollback" means reverting the specific rate-limit/cache config that regressed, not the phase as a whole. |
 
 ---
