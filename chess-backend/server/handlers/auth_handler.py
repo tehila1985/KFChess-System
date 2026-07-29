@@ -26,7 +26,9 @@ class AuthHandler:
     """
     Processes auth messages from the router.
 
-    Constructor parameters (DI): AuthService, ConnectionHub, logger.
+    Constructor parameters (DI): AuthService, ConnectionHub, logger,
+    optional GameHandler (Phase 2 of .github/Server_Design_Implementation_Plan.md
+    — lets a successful login resume an in-progress game on a fresh conn_id).
     """
 
     def __init__(
@@ -34,10 +36,12 @@ class AuthHandler:
         auth_service: AuthService,
         hub: ConnectionHub,
         logger: logging.Logger,
+        game_handler: Any = None,
     ) -> None:
         self._auth = auth_service
         self._hub = hub
         self._log = logger
+        self._game_handler = game_handler
 
     async def handle_login(self, conn_id: str, envelope: Envelope) -> None:
         self._log.info("auth_attempt action=login conn_id=%s", conn_id)
@@ -50,6 +54,11 @@ class AuthHandler:
         result = self._auth.login(payload.username, payload.password)
         if isinstance(result, AuthSuccess):
             self._hub.associate_token(conn_id, result.session_token)
+            if self._game_handler is not None:
+                resumed = await self._game_handler.reconnect(result.user_id, conn_id, result.session_token)
+                if resumed:
+                    self._log.info("game_reconnected username=%s conn_id=%s",
+                                   payload.username, conn_id)
             resp = Envelope(
                 type=MessageType.LOGIN_OK,
                 request_id=envelope.request_id,

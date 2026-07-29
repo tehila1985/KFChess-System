@@ -103,7 +103,7 @@ async def serve(settings=None, router: MessageRouter = None, hub: ConnectionHub 
     if router is None:
         router = MessageRouter(hub=hub, logger=raw_logger)
 
-    auth_handler = AuthHandler(auth_service=auth_svc, hub=hub, logger=raw_logger)
+    auth_handler = AuthHandler(auth_service=auth_svc, hub=hub, logger=raw_logger, game_handler=game_handler)
     play_handler = PlayHandler(
         matchmaking=matchmaking, auth_service=auth_svc, user_repo=user_repo,
         hub=hub, logger=raw_logger,

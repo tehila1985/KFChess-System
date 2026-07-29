@@ -36,18 +36,27 @@ class GameHandler:
         self._sessions: Dict[str, GameSession] = {}
         # conn_id → game_id
         self._conn_to_game: Dict[str, str] = {}
+        # user_id → game_id — survives a conn_id AND session_token changing on
+        # reconnect (login mints a brand-new session_token every time, so that
+        # can't be the correlation key; user_id is the only thing stable
+        # across a re-login).
+        self._user_id_to_game: Dict[int, str] = {}
 
     def register_session(self, session: GameSession) -> None:
         """Called by MatchmakingService / RoomService after session creation."""
         self._sessions[session.game_id] = session
         self._conn_to_game[session.white.conn_id] = session.game_id
         self._conn_to_game[session.black.conn_id] = session.game_id
+        self._user_id_to_game[session.white.user_id] = session.game_id
+        self._user_id_to_game[session.black.user_id] = session.game_id
 
     def unregister_session(self, game_id: str) -> None:
         session = self._sessions.pop(game_id, None)
         if session:
             self._conn_to_game.pop(session.white.conn_id, None)
             self._conn_to_game.pop(session.black.conn_id, None)
+            self._user_id_to_game.pop(session.white.user_id, None)
+            self._user_id_to_game.pop(session.black.user_id, None)
 
     def get_session_by_conn(self, conn_id: str) -> Optional[GameSession]:
         game_id = self._conn_to_game.get(conn_id)
@@ -57,6 +66,35 @@ class GameHandler:
 
     def get_session(self, game_id: str) -> Optional[GameSession]:
         return self._sessions.get(game_id)
+
+    def get_session_by_user_id(self, user_id: int) -> Optional[GameSession]:
+        game_id = self._user_id_to_game.get(user_id)
+        if game_id is None:
+            return None
+        return self._sessions.get(game_id)
+
+    async def reconnect(self, user_id: int, new_conn_id: str, new_session_token: str) -> bool:
+        """
+        Re-point an in-progress game's player conn_id (and session_token —
+        GAME_END's broadcast_to_tokens would otherwise still target the
+        stale pre-login token) after they log back in with a fresh
+        connection, e.g. after their Gateway process restarted — see
+        .github/Server_Design_Implementation_Plan.md Phase 2.
+
+        Returns True if an in-progress game was resumed for this user.
+        """
+        session = self.get_session_by_user_id(user_id)
+        if session is None:
+            return False
+
+        old_conn_id = session.white.conn_id if session.white.user_id == user_id else session.black.conn_id
+        if old_conn_id == new_conn_id:
+            return True  # already the current connection — nothing to move
+
+        await session.handle_reconnect(old_conn_id, new_conn_id, new_session_token)
+        self._conn_to_game.pop(old_conn_id, None)
+        self._conn_to_game[new_conn_id] = session.game_id
+        return True
 
     async def handle_move(self, conn_id: str, envelope: Envelope) -> None:
         try:

@@ -11,7 +11,7 @@ import logging
 import sys
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as dataclass_replace
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional, Set
 
@@ -311,12 +311,38 @@ class GameSession:
         await self._hub.broadcast(conns_to_notify, notif.to_json())
         await monitor.start()
 
-    async def handle_reconnect(self, old_conn_id: str, new_conn_id: str) -> None:
-        """Cancel the countdown if the player reconnects within the grace period."""
+    async def handle_reconnect(
+        self, old_conn_id: str, new_conn_id: str, new_session_token: Optional[str] = None,
+    ) -> None:
+        """
+        Re-point a player's conn_id (and session_token, if a fresh login
+        re-issued one) to their freshly reconnected socket, and cancel their
+        disconnect countdown if it was still running.
+
+        Player is a frozen dataclass and _white/_black.conn_id is what every
+        move/broadcast lookup (_player_and_color, _broadcast_move) keys on,
+        so the reconnect isn't real until this reassignment happens — merely
+        cancelling the countdown left the session still addressing the dead
+        connection. session_token matters too: end_game()'s
+        broadcast_to_tokens would otherwise keep targeting the stale
+        pre-reconnect token.
+        """
+        fields: Dict[str, Any] = {"conn_id": new_conn_id}
+        if new_session_token is not None:
+            fields["session_token"] = new_session_token
+
+        if old_conn_id == self._white.conn_id:
+            self._white = dataclass_replace(self._white, **fields)
+        elif old_conn_id == self._black.conn_id:
+            self._black = dataclass_replace(self._black, **fields)
+        else:
+            return
+
         cancelled = self._cancel_monitor(old_conn_id)
-        if cancelled:
-            self._log.info("reconnect game_id=%s old_conn=%s new_conn=%s",
-                           self._game_id, old_conn_id, new_conn_id)
+        self._log.info(
+            "reconnect game_id=%s old_conn=%s new_conn=%s cancelled_monitor=%s",
+            self._game_id, old_conn_id, new_conn_id, cancelled,
+        )
 
     async def end_game(self, result: GameResult, reason: EndReason) -> None:
         """

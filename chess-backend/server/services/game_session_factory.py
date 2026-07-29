@@ -32,6 +32,7 @@ class GameSessionFactory:
         rating_service: RatingService,
         settings: Settings,
         logger: logging.Logger,
+        allocator: Optional[Any] = None,  # GameAllocator — Phase 2+, optional for backward compat
     ) -> None:
         self._hub = hub
         self._user_repo = user_repo
@@ -39,6 +40,7 @@ class GameSessionFactory:
         self._rating = rating_service
         self._settings = settings
         self._log = logger
+        self._allocator = allocator
 
     def create(
         self,
@@ -62,6 +64,9 @@ class GameSessionFactory:
             "game_session_creating game_id=%s white=%s black=%s room_id=%s",
             game_id, white.username, black.username, room_id,
         )
+        if self._allocator is not None:
+            shard_id = self._allocator.allocate(game_id)
+            self._log.info("game_allocated game_id=%s shard_id=%s", game_id, shard_id)
         return GameSession(
             game_id=game_id,
             white=white,

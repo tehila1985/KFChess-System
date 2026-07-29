@@ -267,6 +267,39 @@ class TestGameSessionDisconnect:
         # ELO should NOT have been updated (game not ended)
         assert not session._user_repo.update_elo.called
 
+    async def test_handle_reconnect_repoints_conn_id_so_moves_from_new_conn_work(self):
+        """
+        Regression guard for Phase 2 of
+        .github/Server_Design_Implementation_Plan.md: handle_reconnect used
+        to only cancel the disconnect countdown, leaving self._white/_black
+        addressing the dead conn_id — apply_move from the new conn_id would
+        have failed with 'not_a_player' forever.
+        """
+        session, white, black, hub, white_ws, black_ws = self._make_session()
+        hub.register("conn-alice-2", type(white_ws)())
+        hub.associate_token("conn-alice-2", "tok-alice")
+
+        await session.handle_reconnect(white.conn_id, "conn-alice-2")
+
+        assert session.white.conn_id == "conn-alice-2"
+        # The old conn_id is no longer recognized as a player in this game.
+        result = await session.apply_move("conn-alice", 6, 4, 4, 4)
+        assert result.accepted is False
+        assert result.reason == "not_a_player"
+        # The new conn_id is.
+        result2 = await session.apply_move("conn-alice-2", 6, 4, 4, 4)
+        assert result2.accepted is True
+
+    async def test_handle_reconnect_updates_session_token_too(self):
+        """
+        A fresh login mints a brand-new session_token — end_game()'s
+        broadcast_to_tokens() would otherwise keep targeting the stale
+        pre-reconnect token forever.
+        """
+        session, white, black, hub, white_ws, black_ws = self._make_session()
+        await session.handle_reconnect(white.conn_id, "conn-alice-2", "tok-alice-new")
+        assert session.white.session_token == "tok-alice-new"
+
     async def test_end_game_cancels_all_monitors(self):
         """end_game cleans up all monitors."""
         from server.domain.enums import GameResult, EndReason

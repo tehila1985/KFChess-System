@@ -62,6 +62,8 @@ class BackendSettings:
     session_key_prefix: str
     room_key_prefix: str
     match_queue_key: str
+    nats_url: str
+    shard_id: str
 
 
 @dataclass(frozen=True)
@@ -90,9 +92,14 @@ def load_settings(config_path: Optional[str] = None) -> Settings:
     Load settings from a YAML config file.
 
     Args:
-        config_path: Path to the YAML file. Defaults to config/default.yaml
+        config_path: Path to the YAML file. Defaults to CHESS_CONFIG_PATH if
+                     set (used to point a separate gateway/shard subprocess —
+                     see tests/e2e/test_phase2_gateway_shard_e2e.py — at a
+                     test-specific port/db_path), else config/default.yaml
                      relative to the chess-backend directory.
     """
+    if config_path is None:
+        config_path = os.environ.get("CHESS_CONFIG_PATH")
     if config_path is None:
         base = Path(__file__).parent.parent
         config_path = str(base / "config" / "default.yaml")
@@ -150,6 +157,8 @@ def load_settings(config_path: Optional[str] = None) -> Settings:
             session_key_prefix=b.get("session_key_prefix", "session"),
             room_key_prefix=b.get("room_key_prefix", "room"),
             match_queue_key=b.get("match_queue_key", "matchmaking:queue"),
+            nats_url=os.environ.get("NATS_URL", b.get("nats_url", "nats://localhost:4222")),
+            shard_id=os.environ.get("SHARD_ID", b.get("shard_id", "shard-0")),
         ),
     )
 

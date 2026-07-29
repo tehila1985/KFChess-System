@@ -35,6 +35,11 @@ backend:
   session_key_prefix: "session"
   room_key_prefix: "room"
   match_queue_key: "matchmaking:queue"
+  # Phase 2 — Gateway/Shard split over NATS. shard_id identifies which
+  # shard.{shard_id}.inbound/outbound subjects a Shard process owns; Phase 2
+  # always has exactly one, so the trivial Game Allocator always resolves to it.
+  nats_url: "nats://localhost:4222"
+  shard_id: "shard-0"
 
 logging:
   server_log_path: "logs/server.log"
