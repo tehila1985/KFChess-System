@@ -14,6 +14,11 @@ import websockets
 
 from server.config_loader import load_settings
 from server.connection_hub import ConnectionHub
+from server.directories.redis_backed import (
+    RedisConnectionDirectory,
+    RedisMatchQueue,
+    RedisRoomRegistry,
+)
 from server.message_router import MessageRouter
 from server.handlers.system_handler import make_ping_handler
 from server.handlers.auth_handler import AuthHandler
@@ -47,6 +52,27 @@ async def serve(settings=None, router: MessageRouter = None, hub: ConnectionHub 
 
     raw_logger = logging.getLogger("chess.server")
 
+    match_queue = None
+    room_registry = None
+    if settings.backend.redis_enabled:
+        import redis as redis_lib
+
+        redis_client = redis_lib.Redis.from_url(settings.backend.redis_url, decode_responses=True)
+        if hub is None:
+            hub = RedisConnectionDirectory(
+                redis_client,
+                key_prefix=settings.backend.session_key_prefix,
+                ttl_seconds=settings.auth.session_token_ttl_seconds,
+                logger=raw_logger,
+            )
+        match_queue = RedisMatchQueue(redis_client, key=settings.backend.match_queue_key)
+        room_registry = RedisRoomRegistry(
+            redis_client,
+            key_prefix=settings.backend.room_key_prefix,
+            ttl_seconds=settings.auth.session_token_ttl_seconds,
+        )
+        raw_logger.info("backend_redis_enabled url=%s", settings.backend.redis_url)
+
     if hub is None:
         hub = ConnectionHub(logger=raw_logger)
 
@@ -65,12 +91,13 @@ async def serve(settings=None, router: MessageRouter = None, hub: ConnectionHub 
 
     matchmaking = MatchmakingService(
         settings=settings, factory=factory, hub=hub,
-        game_handler=game_handler, logger=raw_logger,
+        game_handler=game_handler, logger=raw_logger, queue=match_queue,
     )
     room_id_gen = RoomIdGenerator(settings)
     room_svc = RoomService(
         settings=settings, factory=factory, hub=hub,
         game_handler=game_handler, id_generator=room_id_gen, logger=raw_logger,
+        registry=room_registry,
     )
 
     if router is None:

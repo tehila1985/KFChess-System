@@ -25,6 +25,17 @@ server:
   port: 8765
   db_path: "data/chess.db"
 
+# Phase 1 of .github/Server_Design_Implementation_Plan.md — ephemeral state
+# (connections/sessions, matchmaking queue, room registry) can move to Redis
+# without any other code changing. redis_enabled/redis_url can also be set
+# via the REDIS_BACKEND / REDIS_URL environment variables (env wins).
+backend:
+  redis_enabled: false
+  redis_url: "redis://localhost:6379/0"
+  session_key_prefix: "session"
+  room_key_prefix: "room"
+  match_queue_key: "matchmaking:queue"
+
 logging:
   server_log_path: "logs/server.log"
   client_log_path: "logs/client.log"

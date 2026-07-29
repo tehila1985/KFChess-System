@@ -56,6 +56,15 @@ class ServerSettings:
 
 
 @dataclass(frozen=True)
+class BackendSettings:
+    redis_enabled: bool
+    redis_url: str
+    session_key_prefix: str
+    room_key_prefix: str
+    match_queue_key: str
+
+
+@dataclass(frozen=True)
 class LoggingSettings:
     server_log_path: str
     client_log_path: str
@@ -73,6 +82,7 @@ class Settings:
     auth: AuthSettings
     server: ServerSettings
     logging: LoggingSettings
+    backend: BackendSettings
 
 
 def load_settings(config_path: Optional[str] = None) -> Settings:
@@ -97,6 +107,7 @@ def load_settings(config_path: Optional[str] = None) -> Settings:
     a = raw["auth"]
     s = raw["server"]
     lo = raw["logging"]
+    b = raw.get("backend", {})
 
     return Settings(
         rating=RatingSettings(
@@ -133,4 +144,19 @@ def load_settings(config_path: Optional[str] = None) -> Settings:
             rotate_max_bytes=lo["rotate_max_bytes"],
             rotate_backups=lo["rotate_backups"],
         ),
+        backend=BackendSettings(
+            redis_enabled=_env_bool("REDIS_BACKEND", b.get("redis_enabled", False)),
+            redis_url=os.environ.get("REDIS_URL", b.get("redis_url", "redis://localhost:6379/0")),
+            session_key_prefix=b.get("session_key_prefix", "session"),
+            room_key_prefix=b.get("room_key_prefix", "room"),
+            match_queue_key=b.get("match_queue_key", "matchmaking:queue"),
+        ),
     )
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    """Read a boolean flag from an environment variable, falling back to a config default."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")

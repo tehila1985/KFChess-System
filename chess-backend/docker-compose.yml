@@ -11,7 +11,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6380:6379"  # host 6380: another local project already owns 6379
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -20,7 +20,7 @@ services:
 
   nats:
     image: nats:2-alpine
-    command: ["-js"]  # JetStream enabled, needed by Phase 4's write-behind queue
+    command: ["-js", "-m", "8222"]  # JetStream + monitoring, JetStream needed by Phase 4's write-behind queue
     ports:
       - "4222:4222"
       - "8222:8222"  # monitoring
